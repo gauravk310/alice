@@ -1,4 +1,4 @@
-﻿import Phaser from "phaser";
+import Phaser from "phaser";
 import { Client } from "@colyseus/sdk";
 import "./style.css";
 import {
@@ -9,6 +9,15 @@ import {
   decodeGoogleJwt,
   syncUserWithBackend,
 } from "./auth.ts";
+import {
+  renderLucideIcon,
+  ShieldCheck,
+  Database,
+  LogOut,
+  Gamepad2,
+  Sparkles,
+  AlertTriangle,
+} from "./icons.ts";
 
 const serverUrl =
   import.meta.env.VITE_GAME_SERVER_URL || "http://localhost:2567";
@@ -42,9 +51,9 @@ class GameScene extends Phaser.Scene {
   create() {
     // Canvas background
     const bgGraphics = this.add.graphics();
-    bgGraphics.fillStyle(0x0f172a, 1);
+    bgGraphics.fillStyle(0xf8fafc, 1);
     bgGraphics.fillRoundedRect(20, 20, 760, 410, 16);
-    bgGraphics.lineStyle(2, 0x6366f1, 0.4);
+    bgGraphics.lineStyle(2, 0x6366f1, 0.25);
     bgGraphics.strokeRoundedRect(20, 20, 760, 410, 16);
 
     // Title
@@ -53,7 +62,7 @@ class GameScene extends Phaser.Scene {
         fontSize: "26px",
         fontFamily: "Inter, sans-serif",
         fontStyle: "bold",
-        color: "#ffffff",
+        color: "#0f172a",
       })
       .setOrigin(0.5);
 
@@ -62,7 +71,7 @@ class GameScene extends Phaser.Scene {
       .text(400, 125, `Welcome, ${this.user.name}!`, {
         fontSize: "18px",
         fontFamily: "Inter, sans-serif",
-        color: "#38bdf8",
+        color: "#4f46e5",
       })
       .setOrigin(0.5);
 
@@ -71,18 +80,18 @@ class GameScene extends Phaser.Scene {
       .text(400, 220, "Connecting to game server...", {
         fontSize: "16px",
         fontFamily: "Inter, sans-serif",
-        color: "#94a3b8",
+        color: "#64748b",
         align: "center",
         wordWrap: { width: 650 },
       })
       .setOrigin(0.5);
 
     // Subtle animated avatar circle
-    const avatarCircle = this.add.circle(400, 310, 32, 0x6366f1, 0.8);
+    const avatarCircle = this.add.circle(400, 310, 32, 0x6366f1, 0.15);
     this.tweens.add({
       targets: avatarCircle,
       scale: 1.15,
-      alpha: 0.4,
+      alpha: 0.35,
       yoyo: true,
       repeat: -1,
       duration: 1500,
@@ -115,7 +124,7 @@ class GameScene extends Phaser.Scene {
       this.statusText.setText(
         `✅ Connected to Room!\nSession ID: ${room.sessionId}\nPlayer: ${this.user.name}`
       );
-      this.statusText.setColor("#10b981");
+      this.statusText.setColor("#059669");
 
       room.onMessage("welcome", (data: any) => {
         this.statusText.setText(
@@ -136,7 +145,7 @@ class GameScene extends Phaser.Scene {
       this.statusText.setText(
         "⚠️ Server Connection Failed.\nCheck that the backend server is running on port 2567."
       );
-      this.statusText.setColor("#ef4444");
+      this.statusText.setColor("#dc2626");
     }
   }
 }
@@ -154,7 +163,7 @@ function launchGame(user: UserProfile) {
     type: Phaser.AUTO,
     width: 800,
     height: 450,
-    backgroundColor: "#090c15",
+    backgroundColor: "#ffffff",
     parent: "phaser-container",
     scene: [GameScene],
   });
@@ -180,7 +189,9 @@ function renderGameView(user: UserProfile) {
     <div class="game-container">
       <header class="top-navbar">
         <div class="navbar-brand">
-          <div class="navbar-logo-icon">A</div>
+          <div class="navbar-logo-icon">
+            ${renderLucideIcon(Gamepad2, { width: 20, height: 20 })}
+          </div>
           <div>
             <div class="navbar-title">Alice Multiplayer</div>
             <div class="navbar-subtitle">Arena v0.1</div>
@@ -197,11 +208,7 @@ function renderGameView(user: UserProfile) {
           </div>
 
           <button id="btn-signout" class="btn-signout" title="Sign out">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
+            ${renderLucideIcon(LogOut, { width: 14, height: 14 })}
             Sign Out
           </button>
         </div>
@@ -240,6 +247,7 @@ function renderLoginView() {
       <div class="login-card">
         <div class="brand-badge">
           <span class="brand-dot"></span>
+          ${renderLucideIcon(Sparkles, { width: 13, height: 13 })}
           Alice Multiplayer
         </div>
 
@@ -248,22 +256,16 @@ function renderLoginView() {
 
         <!-- Official Google Sign-In Button Container (Sole Login Option) -->
         <div id="google-btn-container" class="google-button-wrapper">
-          <div style="color: #94a3b8; font-size: 13px;">Loading Google Sign-In...</div>
+          <div style="color: #64748b; font-size: 13px;">Loading Google Sign-In...</div>
         </div>
 
         <div class="login-badges">
           <div class="badge-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
+            ${renderLucideIcon(ShieldCheck, { width: 15, height: 15 })}
             Google OAuth 2.0
           </div>
           <div class="badge-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-            </svg>
+            ${renderLucideIcon(Database, { width: 15, height: 15 })}
             MongoDB Synced
           </div>
         </div>
@@ -281,8 +283,9 @@ function initGoogleAuth() {
 
   if (!googleClientId) {
     container.innerHTML = `
-      <div style="font-size: 13px; color: #f59e0b; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 8px 12px; border-radius: 8px;">
-        ⚠️ Add VITE_GOOGLE_CLIENT_ID to alice/.env
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #d97706; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 8px 12px; border-radius: 8px;">
+        ${renderLucideIcon(AlertTriangle, { width: 16, height: 16 })}
+        Add VITE_GOOGLE_CLIENT_ID to alice/.env
       </div>
     `;
     return;
@@ -300,7 +303,7 @@ function initGoogleAuth() {
     clearInterval(checkGisInterval);
     if (!window.google?.accounts?.id && container) {
       container.innerHTML = `
-        <div style="font-size: 12px; color: #94a3b8;">
+        <div style="font-size: 12px; color: #64748b;">
           Unable to load Google Sign-In. Please check your network connection or disable adblockers.
         </div>
       `;
