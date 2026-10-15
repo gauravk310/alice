@@ -12,6 +12,21 @@ import {
   Wifi,
   WifiOff,
   Zap,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  HelpCircle,
+  X,
+  Star,
+  Play,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Tv,
+  Watch,
+  Settings,
+  Trophy,
+  ExternalLink,
   type IconNode,
 } from "lucide";
 
@@ -28,6 +43,21 @@ export {
   Wifi,
   WifiOff,
   Zap,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  HelpCircle,
+  X,
+  Star,
+  Play,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Tv,
+  Watch,
+  Settings,
+  Trophy,
+  ExternalLink,
 };
 
 /**
@@ -47,29 +77,4 @@ export function renderLucideIcon(
   const merged = { ...defaultAttrs, ...attributes };
   const element = createElement(icon, merged);
   return element.outerHTML;
-}
-
-/**
- * Scan DOM for elements with data-lucide attributes and replace with Lucide SVGs
- */
-export function refreshLucideIcons(root?: Element | Document): void {
-  createIcons({
-    root: root || document.body,
-    icons: {
-      ShieldCheck,
-      Database,
-      LogOut,
-      Gamepad2,
-      Sparkles,
-      User,
-      CheckCircle2,
-      AlertTriangle,
-      Wifi,
-      WifiOff,
-      Zap,
-    },
-    attrs: {
-      "stroke-width": "2",
-    },
-  });
 }
