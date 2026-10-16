@@ -11,7 +11,6 @@ import {
 import {
   renderLucideIcon,
   ShieldCheck,
-  Database,
   LogOut,
   Gamepad2,
   Sparkles,
@@ -20,16 +19,10 @@ import {
   Search,
   HelpCircle,
   X,
-  Star,
   Play,
   Monitor,
-  Smartphone,
-  Tablet,
-  Tv,
-  Watch,
   Settings,
   Trophy,
-  ExternalLink,
   AlertTriangle,
   Plus,
   Users,
@@ -39,12 +32,8 @@ import {
   RefreshCw,
   Radio,
   DoorOpen,
-  MessageSquare,
-  Flame,
   Swords,
   CheckCircle2,
-  SlidersHorizontal,
-  Hash,
 } from "./icons.ts";
 
 const serverUrl =
@@ -305,7 +294,7 @@ function attachProfileDropdownEvents() {
 function renderArenaView(user: UserProfile) {
   if (activeRoom) {
     saveNavigationState("room", activeRoom.roomId);
-    if (isGameStarted) {
+    if (isGameStarted || isCountdownActive || tarajuGameState.phase !== "lobby") {
       renderGameActiveView(user);
     } else {
       renderRoomLobbyView(user);
@@ -779,6 +768,10 @@ function buildPodiumsHtml(user: UserProfile, maxSlots: number): string {
 }
 
 function updateOrRenderLobby(user: UserProfile) {
+  if (isGameStarted || isCountdownActive || tarajuGameState.phase !== "lobby") {
+    return;
+  }
+
   const podiumContainer = document.getElementById("podium-grid-container");
   if (!podiumContainer || !document.getElementById("btn-leave-room")) {
     renderRoomLobbyView(user);
@@ -848,6 +841,11 @@ function updateOrRenderLobby(user: UserProfile) {
 }
 
 function renderRoomLobbyView(user: UserProfile) {
+  if (isGameStarted || isCountdownActive || tarajuGameState.phase !== "lobby") {
+    renderGameActiveView(user);
+    return;
+  }
+
   const app = document.getElementById("app");
   if (!app || !activeRoom) return;
 
@@ -1092,129 +1090,1148 @@ function renderRoomLobbyView(user: UserProfile) {
   });
 }
 
+// ==========================================
+// TARAJU GAME ENGINE & STATE TYPES
+// Replicating King of Diamonds / Beauty Contest from taraju-banner.png
+// ==========================================
+
+export interface TarajuPlayer {
+  sessionId: string;
+  userId: string;
+  name: string;
+  picture: string;
+  isHost: boolean;
+  points: number;              // Starts at 10
+  currentGuess: number | null; // 0 - 100
+  isSubmitted: boolean;        // Locked in
+  isEliminated: boolean;       // points <= 0
+  lastRoundWon: boolean;
+  pointsLostLastRound: number; // 0 or 1
+  diff?: number;
+  isAi?: boolean;
+}
+
+export interface TarajuRoundResult {
+  round: number;
+  guesses: { sessionId: string; name: string; guess: number; diff: number }[];
+  sum: number;
+  average: number;
+  target: number; // average * 0.7
+  winnerSessionIds: string[];
+}
+
+export interface TarajuGameState {
+  phase: "lobby" | "countdown" | "playing" | "results" | "victory";
+  countdownSeconds: number;
+  roundNumber: number;
+  timerSeconds: number; // 180 seconds (3 min)
+  players: TarajuPlayer[];
+  lastResult: TarajuRoundResult | null;
+  nextRoundCountdown: number;
+}
+
+function createInitialTarajuGameState(): TarajuGameState {
+  return {
+    phase: "lobby",
+    countdownSeconds: 10,
+    roundNumber: 1,
+    timerSeconds: 180,
+    players: [],
+    lastResult: null,
+    nextRoundCountdown: 8,
+  };
+}
+
+let tarajuGameState: TarajuGameState = createInitialTarajuGameState();
+let tarajuRoundTimerInterval: any = null;
+let tarajuCountdownInterval: any = null;
+let tarajuNextRoundInterval: any = null;
+let isCountdownActive = false;
+
+// Cross-tab synchronization channel
+const tarajuSyncChannel =
+  typeof window !== "undefined" && typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel("alice_taraju_sync")
+    : null;
+
+if (tarajuSyncChannel) {
+  tarajuSyncChannel.onmessage = (event) => {
+    if (event.data && typeof event.data === "object") {
+      const stored = getStoredUser();
+      if (stored) {
+        handleTarajuSyncAction(event.data, stored);
+      }
+    }
+  };
+}
+
+function broadcastTarajuAction(action: any) {
+  try {
+    tarajuSyncChannel?.postMessage(action);
+  } catch (e) {}
+
+  if (activeRoom) {
+    try {
+      activeRoom.send("chat", { text: "__TAR_SYNC__:" + JSON.stringify(action) });
+    } catch (e) {}
+  }
+}
+
+// Web Audio API Synthesizer for dramatic Alice in Borderland sound effects
+let tarajuAudioCtx: AudioContext | null = null;
+function getTarajuAudioContext(): AudioContext | null {
+  try {
+    if (!tarajuAudioCtx) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        tarajuAudioCtx = new AudioCtxClass();
+      }
+    }
+    if (tarajuAudioCtx && tarajuAudioCtx.state === "suspended") {
+      tarajuAudioCtx.resume();
+    }
+    return tarajuAudioCtx;
+  } catch (e) {
+    return null;
+  }
+}
+
+function playTarajuSound(type: "tick" | "final_tick" | "start" | "win" | "lose" | "fanfare") {
+  const ctx = getTarajuAudioContext();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    if (type === "tick") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } else if (type === "final_tick") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(1320, now);
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    } else if (type === "start") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(960, now + 0.35);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    } else if (type === "win") {
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = "sine";
+        o.frequency.setValueAtTime(freq, now + idx * 0.1);
+        g.gain.setValueAtTime(0.15, now + idx * 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.35);
+        o.start(now + idx * 0.1);
+        o.stop(now + idx * 0.1 + 0.35);
+      });
+    } else if (type === "lose") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(260, now);
+      osc.frequency.exponentialRampToValueAtTime(95, now + 0.45);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.start(now);
+      osc.stop(now + 0.45);
+    } else if (type === "fanfare") {
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((freq, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = "sine";
+        o.frequency.setValueAtTime(freq, now + i * 0.12);
+        g.gain.setValueAtTime(0.18, now + i * 0.12);
+        g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.45);
+        o.start(now + i * 0.12);
+        o.stop(now + i * 0.12 + 0.45);
+      });
+    }
+  } catch (e) {}
+}
+
+function stopTarajuGameTimers() {
+  if (tarajuRoundTimerInterval) {
+    clearInterval(tarajuRoundTimerInterval);
+    tarajuRoundTimerInterval = null;
+  }
+  if (tarajuCountdownInterval) {
+    clearInterval(tarajuCountdownInterval);
+    tarajuCountdownInterval = null;
+  }
+  if (tarajuNextRoundInterval) {
+    clearInterval(tarajuNextRoundInterval);
+    tarajuNextRoundInterval = null;
+  }
+  isCountdownActive = false;
+}
+
 // ------------------------------------------
-// 3. GAME ACTIVE VIEW (Taraju Live Duel in Light Theme)
+// 1. MATCHMAKING COUNTDOWN OVERLAY (10 -> 0)
+// ------------------------------------------
+function renderCountdownOverlay(count: number, user: UserProfile) {
+  let overlay = document.getElementById("taraju-countdown-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "taraju-countdown-overlay";
+    overlay.className = "taraju-countdown-overlay";
+    document.body.appendChild(overlay);
+  }
+
+  const contenders = (roomPlayers.length > 0 ? roomPlayers : [
+    {
+      sessionId: activeRoom?.sessionId || "local-host",
+      userId: user.id,
+      name: user.name,
+      picture: user.picture,
+      isHost: true,
+      isReady: true,
+      joinedAt: Date.now(),
+    },
+  ]);
+
+  overlay.innerHTML = `
+    <div class="taraju-countdown-modal">
+      <div class="taraju-countdown-badge">
+        <span>👑 ARENA INITIALIZING</span>
+      </div>
+
+      <h2 class="taraju-countdown-title">King of Diamonds • Taraju</h2>
+
+      <div class="taraju-countdown-number-ring">
+        <div class="taraju-countdown-digit" id="taraju-countdown-digit">${count}</div>
+      </div>
+
+      <p class="taraju-countdown-subtitle">
+        Matchmaking complete. Entering arena in <strong>${count}s</strong>. Every player begins with <strong>10 Points</strong>. Target 0.7× group average.
+      </p>
+
+      <div class="taraju-countdown-players-list">
+        ${contenders
+          .map(
+            (p) => `
+          <div class="taraju-countdown-player-pill">
+            <span>${p.isHost ? "👑" : "👤"} ${escapeHtml(p.name)}</span>
+            <span class="taraju-countdown-player-points">10 PTS</span>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+}
+
+function updateCountdownOverlay(count: number) {
+  const digitEl = document.getElementById("taraju-countdown-digit");
+  if (digitEl) {
+    digitEl.innerText = String(count);
+    digitEl.style.animation = "none";
+    void digitEl.offsetWidth;
+    digitEl.style.animation = "tarajuDigitTick 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+  }
+}
+
+function removeCountdownOverlay() {
+  const overlay = document.getElementById("taraju-countdown-overlay");
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+function startMatchmakingCountdown(user: UserProfile) {
+  if (isCountdownActive) return;
+  isCountdownActive = true;
+  isGameStarted = true;
+  tarajuGameState.phase = "countdown";
+  tarajuGameState.countdownSeconds = 10;
+
+  renderCountdownOverlay(tarajuGameState.countdownSeconds, user);
+  playTarajuSound("tick");
+
+  if (tarajuCountdownInterval) clearInterval(tarajuCountdownInterval);
+
+  tarajuCountdownInterval = setInterval(() => {
+    tarajuGameState.countdownSeconds -= 1;
+    if (tarajuGameState.countdownSeconds > 0) {
+      updateCountdownOverlay(tarajuGameState.countdownSeconds);
+      playTarajuSound("tick");
+    } else {
+      clearInterval(tarajuCountdownInterval);
+      tarajuCountdownInterval = null;
+      isCountdownActive = false;
+      playTarajuSound("final_tick");
+      removeCountdownOverlay();
+      initializeTarajuGame(user);
+    }
+  }, 1000);
+}
+
+// ------------------------------------------
+// 2. INITIALIZE GAME WITH 10 POINTS PER PLAYER
+// ------------------------------------------
+function initializeTarajuGame(user: UserProfile) {
+  stopTarajuGameTimers();
+
+  // Create initial players roster, each starting with 10 points
+  let initialPlayers: TarajuPlayer[] = [];
+
+  if (roomPlayers.length > 0) {
+    initialPlayers = roomPlayers.map((p) => ({
+      sessionId: p.sessionId,
+      userId: p.userId,
+      name: p.name,
+      picture: p.picture,
+      isHost: p.isHost,
+      points: 10, // EVERY PLAYER STARTS WITH 10 POINTS!
+      currentGuess: null,
+      isSubmitted: false,
+      isEliminated: false,
+      lastRoundWon: false,
+      pointsLostLastRound: 0,
+      isAi: false,
+    }));
+  } else {
+    initialPlayers = [
+      {
+        sessionId: activeRoom?.sessionId || "local-player",
+        userId: user.id,
+        name: user.name,
+        picture: user.picture,
+        isHost: true,
+        points: 10,
+        currentGuess: null,
+        isSubmitted: false,
+        isEliminated: false,
+        lastRoundWon: false,
+        pointsLostLastRound: 0,
+        isAi: false,
+      },
+    ];
+  }
+
+  // If testing solo with 1 player, add AI contenders for authentic Taraju duel
+  if (initialPlayers.length === 1) {
+    initialPlayers.push(
+      {
+        sessionId: "bot-chishiya",
+        userId: "bot-1",
+        name: "Chishiya",
+        picture: "",
+        isHost: false,
+        points: 10,
+        currentGuess: null,
+        isSubmitted: false,
+        isEliminated: false,
+        lastRoundWon: false,
+        pointsLostLastRound: 0,
+        isAi: true,
+      },
+      {
+        sessionId: "bot-kuina",
+        userId: "bot-2",
+        name: "Kuina",
+        picture: "",
+        isHost: false,
+        points: 10,
+        currentGuess: null,
+        isSubmitted: false,
+        isEliminated: false,
+        lastRoundWon: false,
+        pointsLostLastRound: 0,
+        isAi: true,
+      }
+    );
+  }
+
+  tarajuGameState = {
+    phase: "playing",
+    countdownSeconds: 0,
+    roundNumber: 1,
+    timerSeconds: 180, // 3 minutes = 180 seconds
+    players: initialPlayers,
+    lastResult: null,
+    nextRoundCountdown: 8,
+  };
+
+  isGameStarted = true;
+  currentChosenBalance = 50;
+
+  if (activeRoom) {
+    saveNavigationState("room", activeRoom.roomId);
+  }
+
+  playTarajuSound("start");
+  renderGameActiveView(user);
+  startRoundTimer(user);
+  scheduleAiGuesses(user);
+}
+
+// Schedule AI guesses if playing solo with AI
+function scheduleAiGuesses(user: UserProfile) {
+  const activeBots = tarajuGameState.players.filter((p) => p.isAi && !p.isEliminated);
+  if (activeBots.length === 0) return;
+
+  activeBots.forEach((bot, idx) => {
+    const delay = 2500 + idx * 1500;
+    setTimeout(() => {
+      if (tarajuGameState.phase !== "playing" || bot.isEliminated) return;
+      // Smart guess strategy targeting 0.7x avg (typically 12 - 42)
+      const baseGuess = Math.floor(Math.random() * 32) + 12;
+      bot.currentGuess = baseGuess;
+      bot.isSubmitted = true;
+      renderGameActiveView(user);
+      checkIfAllSubmittedAndEvaluate(user);
+    }, delay);
+  });
+}
+
+// ------------------------------------------
+// 3. ROUND TIMER (3 Minutes = 180 Seconds)
+// ------------------------------------------
+function formatTimerDisplay(seconds: number): string {
+  const mins = Math.floor(Math.max(0, seconds) / 60);
+  const secs = Math.max(0, seconds) % 60;
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+function startRoundTimer(user: UserProfile) {
+  if (tarajuRoundTimerInterval) clearInterval(tarajuRoundTimerInterval);
+
+  tarajuRoundTimerInterval = setInterval(() => {
+    if (tarajuGameState.phase !== "playing") return;
+
+    tarajuGameState.timerSeconds -= 1;
+    const timerBox = document.getElementById("taraju-top-timer-box");
+    const timerDigits = document.getElementById("taraju-top-timer-digits");
+
+    if (timerDigits) {
+      timerDigits.innerText = formatTimerDisplay(tarajuGameState.timerSeconds);
+    }
+
+    if (timerBox) {
+      if (tarajuGameState.timerSeconds <= 30) {
+        timerBox.classList.add("timer-warning");
+        if (tarajuGameState.timerSeconds % 2 === 0 && tarajuGameState.timerSeconds > 0) {
+          playTarajuSound("tick");
+        }
+      } else {
+        timerBox.classList.remove("timer-warning");
+      }
+    }
+
+    // Time expired: Evaluate immediately!
+    if (tarajuGameState.timerSeconds <= 0) {
+      clearInterval(tarajuRoundTimerInterval);
+      tarajuRoundTimerInterval = null;
+      evaluateRound(user);
+    }
+  }, 1000);
+}
+
+// ------------------------------------------
+// 4. PLAYER SUBMISSION & ROUND EVALUATION
+// ------------------------------------------
+function handlePlayerSubmitChoice(user: UserProfile) {
+  const localPlayer = tarajuGameState.players.find(
+    (p) =>
+      p.sessionId === (activeRoom?.sessionId || "") ||
+      p.userId === user.id ||
+      (!p.isAi && !activeRoom)
+  );
+
+  if (!localPlayer || localPlayer.isEliminated || localPlayer.isSubmitted) return;
+
+  localPlayer.currentGuess = currentChosenBalance;
+  localPlayer.isSubmitted = true;
+
+  if (activeRoom) {
+    try {
+      activeRoom.send("submit_guess", { guess: currentChosenBalance });
+    } catch (e) {}
+  }
+
+  broadcastTarajuAction({
+    type: "PLAYER_GUESS",
+    sessionId: localPlayer.sessionId,
+    guess: currentChosenBalance,
+  });
+
+  renderGameActiveView(user);
+  checkIfAllSubmittedAndEvaluate(user);
+}
+
+function checkIfAllSubmittedAndEvaluate(user: UserProfile) {
+  const activePlayers = tarajuGameState.players.filter((p) => !p.isEliminated);
+  if (activePlayers.length === 0) return;
+
+  const allSubmitted = activePlayers.every((p) => p.isSubmitted);
+  if (allSubmitted && tarajuGameState.phase === "playing") {
+    // Only room host (or solo coordinator) evaluates
+    const currentHost = tarajuGameState.players.find((p) => p.isHost) || tarajuGameState.players[0];
+    const isHost =
+      !activeRoom ||
+      currentHost?.sessionId === activeRoom.sessionId ||
+      currentHost?.userId === user.id;
+
+    if (isHost) {
+      evaluateRound(user);
+    }
+  }
+}
+
+function evaluateRound(user: UserProfile) {
+  if (tarajuGameState.phase !== "playing") return;
+  stopTarajuGameTimers();
+
+  const activePlayers = tarajuGameState.players.filter((p) => !p.isEliminated);
+  if (activePlayers.length === 0) return;
+
+  // Ensure every active player has a guess (fallback to 50 if timeout)
+  activePlayers.forEach((p) => {
+    if (p.currentGuess === null || p.currentGuess === undefined) {
+      p.currentGuess = currentChosenBalance || 50;
+      p.isSubmitted = true;
+    }
+  });
+
+  // 1. Calculate Average
+  const sum = activePlayers.reduce((acc, p) => acc + (p.currentGuess ?? 50), 0);
+  const average = sum / activePlayers.length;
+
+  // 2. Multiply Average by 0.7
+  const target = average * 0.7;
+
+  // 3. Find player whose guess is closest to target
+  let minDiff = Infinity;
+  const guessesWithDiff = activePlayers.map((p) => {
+    const diff = Math.abs((p.currentGuess ?? 50) - target);
+    if (diff < minDiff) minDiff = diff;
+    return {
+      sessionId: p.sessionId,
+      name: p.name,
+      guess: p.currentGuess ?? 50,
+      diff,
+    };
+  });
+
+  // Identify winners (closest to target)
+  const winnerSessionIds: string[] = [];
+  guessesWithDiff.forEach((g) => {
+    if (Math.abs(g.diff - minDiff) < 0.0001) {
+      winnerSessionIds.push(g.sessionId);
+    }
+  });
+
+  // 4. Update points:
+  // Winners survive and don't lose points.
+  // All losers lose 1 point! When any player reaches 0 points, they are eliminated.
+  activePlayers.forEach((p) => {
+    if (winnerSessionIds.includes(p.sessionId)) {
+      p.lastRoundWon = true;
+      p.pointsLostLastRound = 0;
+    } else {
+      p.lastRoundWon = false;
+      p.pointsLostLastRound = 1;
+      p.points -= 1;
+      if (p.points <= 0) {
+        p.points = 0;
+        p.isEliminated = true;
+      }
+    }
+  });
+
+  const roundResult: TarajuRoundResult = {
+    round: tarajuGameState.roundNumber,
+    guesses: guessesWithDiff,
+    sum,
+    average,
+    target,
+    winnerSessionIds,
+  };
+
+  tarajuGameState.lastResult = roundResult;
+  tarajuGameState.phase = "results";
+
+  // Broadcast authoritative result to all clients
+  broadcastTarajuAction({
+    type: "ROUND_EVALUATED",
+    result: roundResult,
+    players: tarajuGameState.players,
+  });
+
+  // Play sound
+  const localPlayer = tarajuGameState.players.find(
+    (p) =>
+      p.sessionId === (activeRoom?.sessionId || "") ||
+      p.userId === user.id ||
+      (!p.isAi && !activeRoom)
+  );
+
+  if (localPlayer && winnerSessionIds.includes(localPlayer.sessionId)) {
+    playTarajuSound("win");
+  } else {
+    playTarajuSound("lose");
+  }
+
+  renderGameActiveView(user);
+
+  // 5. Check if only 1 player remains
+  const survivingPlayers = tarajuGameState.players.filter((p) => p.points > 0);
+
+  if (survivingPlayers.length <= 1) {
+    tarajuGameState.phase = "victory";
+    playTarajuSound("fanfare");
+    renderGameActiveView(user);
+  } else {
+    // Start 8-second countdown to next round
+    startNextRoundCountdown(user);
+  }
+}
+
+function startNextRoundCountdown(user: UserProfile) {
+  if (tarajuNextRoundInterval) clearInterval(tarajuNextRoundInterval);
+  tarajuGameState.nextRoundCountdown = 8;
+
+  tarajuNextRoundInterval = setInterval(() => {
+    tarajuGameState.nextRoundCountdown -= 1;
+    const badge = document.getElementById("taraju-next-countdown-badge");
+    if (badge) {
+      badge.innerText = `Next round starts in ${tarajuGameState.nextRoundCountdown}s...`;
+    }
+
+    if (tarajuGameState.nextRoundCountdown <= 0) {
+      clearInterval(tarajuNextRoundInterval);
+      tarajuNextRoundInterval = null;
+      advanceToNextRound(user);
+    }
+  }, 1000);
+}
+
+function advanceToNextRound(user: UserProfile) {
+  stopTarajuGameTimers();
+
+  if (activeRoom) {
+    try {
+      activeRoom.send("start_next_round");
+    } catch (e) {}
+  }
+
+  tarajuGameState.roundNumber += 1;
+  tarajuGameState.phase = "playing";
+  tarajuGameState.timerSeconds = 180; // Reset to 3 minutes
+  tarajuGameState.lastResult = null;
+
+  // Reset active players' guess state
+  tarajuGameState.players.forEach((p) => {
+    p.currentGuess = null;
+    p.isSubmitted = false;
+    p.lastRoundWon = false;
+    p.pointsLostLastRound = 0;
+  });
+
+  broadcastTarajuAction({
+    type: "NEXT_ROUND",
+    roundNumber: tarajuGameState.roundNumber,
+    players: tarajuGameState.players,
+  });
+
+  playTarajuSound("start");
+  renderGameActiveView(user);
+  startRoundTimer(user);
+  scheduleAiGuesses(user);
+}
+
+function restartTarajuMatch(user: UserProfile) {
+  stopTarajuGameTimers();
+  if (activeRoom) {
+    try {
+      activeRoom.send("restart_game");
+    } catch (e) {}
+  }
+  initializeTarajuGame(user);
+}
+
+function handleTarajuSyncAction(action: any, user: UserProfile) {
+  if (!action || !action.type) return;
+
+  if (action.type === "START_COUNTDOWN") {
+    startMatchmakingCountdown(user);
+  } else if (action.type === "PLAYER_GUESS") {
+    const target = tarajuGameState.players.find((p) => p.sessionId === action.sessionId);
+    if (target && !target.isEliminated) {
+      target.isSubmitted = true;
+      target.currentGuess = action.guess;
+      renderGameActiveView(user);
+      checkIfAllSubmittedAndEvaluate(user);
+    }
+  } else if (action.type === "ROUND_EVALUATED") {
+    if (action.result && action.players) {
+      tarajuGameState.lastResult = action.result;
+      tarajuGameState.players = action.players;
+      tarajuGameState.phase = "results";
+      stopTarajuGameTimers();
+      renderGameActiveView(user);
+
+      const survivors = tarajuGameState.players.filter((p) => p.points > 0);
+      if (survivors.length <= 1) {
+        tarajuGameState.phase = "victory";
+        playTarajuSound("fanfare");
+        renderGameActiveView(user);
+      } else {
+        startNextRoundCountdown(user);
+      }
+    }
+  } else if (action.type === "NEXT_ROUND") {
+    tarajuGameState.roundNumber = action.roundNumber || tarajuGameState.roundNumber + 1;
+    tarajuGameState.phase = "playing";
+    tarajuGameState.timerSeconds = 180;
+    tarajuGameState.lastResult = null;
+    if (action.players) tarajuGameState.players = action.players;
+    tarajuGameState.players.forEach((p) => {
+      p.currentGuess = null;
+      p.isSubmitted = false;
+      p.lastRoundWon = false;
+    });
+    stopTarajuGameTimers();
+    renderGameActiveView(user);
+    startRoundTimer(user);
+  } else if (action.type === "RESTART_MATCH") {
+    initializeTarajuGame(user);
+  }
+}
+
+// ------------------------------------------
+// 5. RENDER GAME ACTIVE VIEW (Exact Replica of taraju-banner.png)
 // ------------------------------------------
 function renderGameActiveView(user: UserProfile) {
   const app = document.getElementById("app");
   if (!app) return;
 
-  const avatarMarkupSmall = user.picture
-    ? `<img src="${user.picture}" alt="${user.name}" class="avatar-img-circle" referrerpolicy="no-referrer" />`
-    : `<div class="avatar-initials-circle">${(user.name || "U").charAt(0).toUpperCase()}</div>`;
+  const currentHost = tarajuGameState.players.find((p) => p.isHost) || tarajuGameState.players[0];
+  const isHost =
+    !activeRoom ||
+    currentHost?.sessionId === activeRoom.sessionId ||
+    currentHost?.userId === user.id;
 
-  const avatarMarkupLarge = user.picture
-    ? `<img src="${user.picture}" alt="${user.name}" class="dropdown-avatar-large" referrerpolicy="no-referrer" />`
-    : `<div class="dropdown-avatar-initials-large">${(user.name || "U").charAt(0).toUpperCase()}</div>`;
+  const localPlayer = tarajuGameState.players.find(
+    (p) =>
+      p.sessionId === (activeRoom?.sessionId || "") ||
+      p.userId === user.id ||
+      (!p.isAi && !activeRoom)
+  ) || tarajuGameState.players[0];
+
+  const activeCount = tarajuGameState.players.filter((p) => !p.isEliminated).length;
+  const isResultsPhase = tarajuGameState.phase === "results" || tarajuGameState.phase === "victory";
+  const lastRes = tarajuGameState.lastResult;
+
+  // Survivor calculation for game over
+  const survivors = tarajuGameState.players.filter((p) => p.points > 0);
+  const ultimateWinner = survivors.length === 1 ? survivors[0] : null;
 
   app.innerHTML = `
-    <div class="arena-fullscreen-wrapper">
-      <header class="playstore-header">
-        <div class="header-left">
-          <div class="navbar-brand" id="brand-to-store-game" title="Back to Games" style="cursor: pointer;">
-            <div class="navbar-logo-icon">
-              ${renderLucideIcon(Gamepad2, { width: 20, height: 20 })}
-            </div>
-            <div>
-              <div class="navbar-title">Alice Multiplayer</div>
-              <div class="navbar-subtitle">Arena v0.1</div>
-            </div>
+    <div class="taraju-arena-screen">
+      <!-- High-Tech Arena Header Bar -->
+      <header class="taraju-arena-header">
+        <div class="taraju-header-left">
+          <button class="btn-taraju-back" id="btn-taraju-leave">
+            ${renderLucideIcon(ChevronLeft, { width: 16, height: 16 })}
+            <span>Lobby</span>
+          </button>
+          <div class="taraju-room-badge">
+            ${escapeHtml(currentRoomSummary?.roomCode || activeRoom?.roomId ? `#${currentRoomSummary?.roomCode || "TRJ-ARENA"}` : "SOLO ARENA")}
           </div>
-          <nav class="playstore-nav-tabs">
-            <div class="playstore-tab active" data-tab="games">Games</div>
-          </nav>
         </div>
 
-        <div class="header-right">
-          <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
-            ${avatarMarkupSmall}
-          </button>
-          ${renderProfileDropdownHtml(user, avatarMarkupLarge)}
+        <!-- Central High-Tech Countdown Timer (03:00) -->
+        <div class="taraju-header-center">
+          <div class="taraju-round-badge">
+            ROUND ${tarajuGameState.roundNumber}
+          </div>
+
+          <div class="taraju-top-timer-box ${tarajuGameState.timerSeconds <= 30 && tarajuGameState.phase === "playing" ? "timer-warning" : ""}" id="taraju-top-timer-box" title="3-Minute Round Timer">
+            <div class="taraju-top-timer-icon">
+              ⏱️
+            </div>
+            <div class="taraju-top-timer-digits" id="taraju-top-timer-digits">
+              ${formatTimerDisplay(tarajuGameState.timerSeconds)}
+            </div>
+          </div>
+        </div>
+
+        <div class="taraju-header-right">
+          <div class="taraju-active-counter">
+            Active: <strong>${activeCount} / ${tarajuGameState.players.length}</strong>
+          </div>
         </div>
       </header>
 
-      <div class="arena-fullscreen-subbanner">
-        <div class="arena-nav-left">
-          <button class="btn-arena-back" id="btn-return-lobby">
-            ${renderLucideIcon(ChevronLeft, { width: 16, height: 16 })}
-            <span>Return to Lobby</span>
-          </button>
-          <div class="arena-nav-title">Taraju Duel • Live Arena Match</div>
-        </div>
-
-        <div class="arena-nav-right">
-          <button class="btn-leave-lobby" id="btn-game-leave">
-            ${renderLucideIcon(DoorOpen, { width: 15, height: 15 })}
-            <span>Leave Match</span>
-          </button>
-        </div>
-      </div>
-
-      <main class="game-active-arena">
-        <div class="game-active-banner">
-          <div>
-            <h2 style="font-size: 22px; font-weight: 800; color: #0f172a;">Taraju: Balance of Numbers</h2>
-            <p style="font-size: 14px; color: #64748b; margin-top: 4px;">
-              Pick your balance number from 0 to 100. Target 0.7× of the group average.
-            </p>
+      <!-- Main Stage: Exact Replica of taraju-banner.png -->
+      <main class="taraju-main-stage">
+        <!-- Subtitle & Rules Status Strip -->
+        <div class="taraju-stage-status-strip">
+          <div class="taraju-rule-hint">
+            👑 <strong>Rule:</strong> Choose 0-100. Target score is <strong>0.7 × average</strong>. Closest player wins, losers lose 1 point.
           </div>
-          <div style="font-size: 14px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 8px 16px; border-radius: 12px;">
-            Round In Progress
+          <div class="taraju-phase-pill ${
+            tarajuGameState.phase === "playing"
+              ? "phase-guess"
+              : tarajuGameState.phase === "results"
+              ? "phase-result"
+              : "phase-over"
+          }">
+            ${
+              tarajuGameState.phase === "playing"
+                ? "Choice Phase • 3 Min"
+                : tarajuGameState.phase === "results"
+                ? "Round Evaluated"
+                : "Arena Concluded"
+            }
           </div>
         </div>
 
-        <div class="duel-control-card">
-          <div style="font-size: 14px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 1px;">
-            Your Number Choice
+        <!-- The Taraju Scale Grid: Player Cards & Revealed Numbers (taraju-banner.png) -->
+        <div class="taraju-scale-grid" id="taraju-scale-grid">
+          ${tarajuGameState.players
+            .map((p) => {
+              const isWinner = isResultsPhase && lastRes?.winnerSessionIds.includes(p.sessionId);
+              const isLocal = p.sessionId === localPlayer?.sessionId;
+              
+              // Guess display under avatar
+              let displayedNumber = "??";
+              if (isResultsPhase) {
+                displayedNumber = String(p.currentGuess ?? 50);
+              } else if (isLocal && p.currentGuess !== null) {
+                displayedNumber = String(p.currentGuess);
+              } else if (p.isSubmitted) {
+                displayedNumber = "✓";
+              }
+
+              return `
+                <div class="taraju-player-col ${isWinner ? "is-winner" : ""} ${p.isEliminated ? "is-eliminated" : ""}" id="player-col-${p.sessionId}">
+                  <!-- Winner Crown & Golden Label (Top of column, matching banner) -->
+                  <div class="taraju-col-winner-label">
+                    <span class="taraju-crown-icon">👑</span>
+                    <span class="taraju-winner-text">WINNER</span>
+                  </div>
+
+                  <!-- Unified Card Frame (Frames Avatar + Number with glowing red/orange neon border when winning) -->
+                  <div class="taraju-card-frame">
+                    <!-- Avatar Box -->
+                    <div class="taraju-avatar-box">
+                      <!-- Submission indicator pill -->
+                      ${
+                        p.isSubmitted && !isResultsPhase
+                          ? `<div class="taraju-status-pill ready">LOCKED ✓</div>`
+                          : !p.isSubmitted && !isResultsPhase && !p.isEliminated
+                          ? `<div class="taraju-status-pill">THINKING...</div>`
+                          : ""
+                      }
+
+                      <!-- Eliminated badge -->
+                      ${p.isEliminated ? `<div class="taraju-eliminated-badge">ELIMINATED</div>` : ""}
+
+                      <!-- Avatar circle -->
+                      <div class="taraju-avatar-circle-wrap">
+                        ${
+                          p.picture
+                            ? `<img src="${p.picture}" alt="${p.name}" class="taraju-avatar-img" referrerpolicy="no-referrer" />`
+                            : `<div class="taraju-avatar-initials">${(p.name || "U").charAt(0).toUpperCase()}</div>`
+                        }
+                      </div>
+
+                      <div class="taraju-player-name" title="${escapeHtml(p.name)}">
+                        ${p.isHost ? "👑 " : ""}${escapeHtml(p.name)}${isLocal ? " (YOU)" : ""}
+                      </div>
+
+                      <!-- Points Tag (10 PTS initially, shows -1 on loss) -->
+                      <div class="taraju-player-points-tag ${
+                        isResultsPhase && isWinner
+                          ? "points-safe"
+                          : isResultsPhase && p.pointsLostLastRound > 0
+                          ? "points-lost"
+                          : ""
+                      }">
+                        ${p.points} PTS ${
+                          isResultsPhase && p.pointsLostLastRound > 0
+                            ? "(-1)"
+                            : isResultsPhase && isWinner
+                            ? "(SAFE)"
+                            : ""
+                        }
+                      </div>
+                    </div>
+
+                    <!-- Glowing Number Box (Directly below avatar, exact match to mint box in taraju-banner.png) -->
+                    <div class="taraju-number-box ${!isResultsPhase && !isLocal ? "is-secret" : ""}" id="num-box-${p.sessionId}">
+                      ${displayedNumber}
+                    </div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+
+        <!-- TOTAL / Target Calculation Banner (Directly below cards row, matching taraju-banner.png) -->
+        ${
+          isResultsPhase && lastRes
+            ? `
+          <div class="taraju-total-container">
+            <div class="taraju-total-row">
+              <div class="taraju-total-label">TOTAL</div>
+              <div class="taraju-total-pill">${lastRes.target.toFixed(2)}</div>
+            </div>
+
+            <div class="taraju-calculation-box">
+              <div class="taraju-calc-line">
+                Average of all guesses: <strong>${lastRes.average.toFixed(2)}</strong> • Target: ${lastRes.average.toFixed(2)} × 0.7 = <strong>${lastRes.target.toFixed(2)}</strong>
+              </div>
+              <div class="taraju-calc-winner-line">
+                👑 Closest Guess: ${lastRes.guesses
+                  .filter((g) => lastRes.winnerSessionIds.includes(g.sessionId))
+                  .map((g) => `${escapeHtml(g.name)} (${g.guess})`)
+                  .join(", ")}
+              </div>
+              <div style="font-size: 12px; color: #94a3b8;">
+                All losing contenders lose 1 point. Contenders reaching 0 points are eliminated.
+              </div>
+            </div>
+
+            <!-- Next round timer & action -->
+            ${
+              tarajuGameState.phase !== "victory"
+                ? `
+              <div class="taraju-next-round-strip">
+                <span class="taraju-next-countdown-badge" id="taraju-next-countdown-badge">
+                  Next round starts in ${tarajuGameState.nextRoundCountdown}s...
+                </span>
+                ${
+                  isHost
+                    ? `
+                  <button class="btn-taraju-skip-next" id="btn-taraju-skip-next">
+                    Start Next Round Now
+                  </button>
+                `
+                    : ""
+                }
+              </div>
+            `
+                : ""
+            }
           </div>
-
-          <div class="duel-number-display" id="chosen-number-text">
-            ${currentChosenBalance}
+        `
+            : `
+          <!-- Placeholder during choice phase so layout stays rock-solid -->
+          <div class="taraju-total-container" style="opacity: 0.5;">
+            <div class="taraju-total-row">
+              <div class="taraju-total-label">TOTAL</div>
+              <div class="taraju-total-pill" style="color: #64748b;">--.--</div>
+            </div>
           </div>
+        `
+        }
 
-          <input 
-            type="range" 
-            id="slider-balance" 
-            class="duel-slider" 
-            min="0" 
-            max="100" 
-            value="${currentChosenBalance}" 
-          />
+        <!-- Player Input Deck: Slider, Direct Input, Presets & Confirm Button -->
+        <div class="taraju-player-controls">
+          ${
+            localPlayer?.isEliminated
+              ? `
+            <div class="taraju-eliminated-notice">
+              <div class="taraju-eliminated-notice-title">💀 YOU HAVE BEEN ELIMINATED</div>
+              <p>You reached 0 points and can no longer submit guesses. You are spectating the remaining contenders until the victor emerges.</p>
+            </div>
+          `
+              : `
+            <div class="taraju-control-title">
+              Choose your balance number (0 - 100)
+            </div>
 
-          <button class="btn-submit-choice" id="btn-lock-choice">
-            Lock in Choice (${currentChosenBalance})
-          </button>
+            <div class="taraju-control-display-row">
+              <button class="btn-taraju-step" id="btn-step-minus-10" ${localPlayer?.isSubmitted ? "disabled" : ""}>-10</button>
+              <button class="btn-taraju-step" id="btn-step-minus-1" ${localPlayer?.isSubmitted ? "disabled" : ""}>-1</button>
+              
+              <input 
+                type="number" 
+                id="input-taraju-number" 
+                class="taraju-number-input" 
+                min="0" 
+                max="100" 
+                value="${currentChosenBalance}" 
+                ${localPlayer?.isSubmitted ? "disabled" : ""}
+              />
+
+              <button class="btn-taraju-step" id="btn-step-plus-1" ${localPlayer?.isSubmitted ? "disabled" : ""}>+1</button>
+              <button class="btn-taraju-step" id="btn-step-plus-10" ${localPlayer?.isSubmitted ? "disabled" : ""}>+10</button>
+            </div>
+
+            <div class="taraju-slider-row">
+              <input 
+                type="range" 
+                id="slider-taraju-balance" 
+                class="taraju-slider" 
+                min="0" 
+                max="100" 
+                value="${currentChosenBalance}" 
+                ${localPlayer?.isSubmitted ? "disabled" : ""}
+              />
+              <div class="taraju-slider-labels">
+                <span>0</span>
+                <span>25</span>
+                <span>50</span>
+                <span>75</span>
+                <span>100</span>
+              </div>
+            </div>
+
+            <!-- Quick Presets -->
+            <div class="taraju-presets-row">
+              ${[0, 15, 25, 35, 50, 70, 85, 100]
+                .map(
+                  (val) => `
+                <button class="btn-taraju-preset" data-val="${val}" ${localPlayer?.isSubmitted ? "disabled" : ""}>
+                  ${val}
+                </button>
+              `
+                )
+                .join("")}
+            </div>
+
+            <!-- Lock Choice Button -->
+            <button class="btn-taraju-lock-choice ${localPlayer?.isSubmitted ? "is-locked" : ""}" id="btn-taraju-lock" ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}>
+              ${
+                localPlayer?.isSubmitted
+                  ? `✅ Guess Locked: ${localPlayer.currentGuess} (Waiting for others...)`
+                  : `Lock in Guess (${currentChosenBalance})`
+              }
+            </button>
+          `
+          }
         </div>
       </main>
+
+      <!-- Ultimate Victory Modal (When only 1 survivor remains) -->
+      ${
+        tarajuGameState.phase === "victory" && ultimateWinner
+          ? `
+        <div class="taraju-victory-overlay">
+          <div class="taraju-victory-card">
+            <div class="taraju-victory-crown">👑</div>
+            <h2 class="taraju-victory-title">KING OF DIAMONDS CHAMPION</h2>
+            <div class="taraju-victory-survivor-name">
+              ${escapeHtml(ultimateWinner.name)} WINS THE ARENA!
+            </div>
+            <div class="taraju-victory-stats">
+              Sole survivor with <strong>${ultimateWinner.points} Points</strong> remaining across <strong>${tarajuGameState.roundNumber} Rounds</strong>.
+            </div>
+            <div class="taraju-victory-actions">
+              <button class="btn-taraju-play-again" id="btn-taraju-play-again">
+                Play Again (Reset to 10 Pts)
+              </button>
+              <button class="btn-taraju-exit-lobby" id="btn-taraju-victory-exit">
+                Return to Lobby
+              </button>
+            </div>
+          </div>
+        </div>
+      `
+          : ""
+      }
     </div>
   `;
 
-  attachProfileDropdownEvents();
+  // Attach interactive events
+  attachGameActiveEvents(user);
+}
 
-  const slider = document.getElementById("slider-balance") as HTMLInputElement;
-  const numDisplay = document.getElementById("chosen-number-text");
-  const lockBtn = document.getElementById("btn-lock-choice");
+function attachGameActiveEvents(user: UserProfile) {
+  const slider = document.getElementById("slider-taraju-balance") as HTMLInputElement;
+  const numInput = document.getElementById("input-taraju-number") as HTMLInputElement;
+  const lockBtn = document.getElementById("btn-taraju-lock");
+
+  const syncNumber = (val: number) => {
+    currentChosenBalance = Math.max(0, Math.min(100, Math.round(val)));
+    if (slider) slider.value = String(currentChosenBalance);
+    if (numInput) numInput.value = String(currentChosenBalance);
+    if (lockBtn && !lockBtn.classList.contains("is-locked")) {
+      lockBtn.innerText = `Lock in Guess (${currentChosenBalance})`;
+    }
+  };
 
   slider?.addEventListener("input", () => {
-    currentChosenBalance = Number(slider.value);
-    if (numDisplay) numDisplay.innerText = String(currentChosenBalance);
-    if (lockBtn) lockBtn.innerText = `Lock in Choice (${currentChosenBalance})`;
+    syncNumber(Number(slider.value));
+  });
+
+  numInput?.addEventListener("input", () => {
+    syncNumber(Number(numInput.value));
+  });
+
+  document.getElementById("btn-step-minus-10")?.addEventListener("click", () => syncNumber(currentChosenBalance - 10));
+  document.getElementById("btn-step-minus-1")?.addEventListener("click", () => syncNumber(currentChosenBalance - 1));
+  document.getElementById("btn-step-plus-1")?.addEventListener("click", () => syncNumber(currentChosenBalance + 1));
+  document.getElementById("btn-step-plus-10")?.addEventListener("click", () => syncNumber(currentChosenBalance + 10));
+
+  document.querySelectorAll(".btn-taraju-preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = Number(btn.getAttribute("data-val"));
+      if (!isNaN(v)) syncNumber(v);
+    });
   });
 
   lockBtn?.addEventListener("click", () => {
-    lockBtn.innerText = `✅ Choice Locked: ${currentChosenBalance}`;
-    lockBtn.style.background = "#059669";
+    handlePlayerSubmitChoice(user);
   });
 
-  document.getElementById("btn-return-lobby")?.addEventListener("click", () => {
+  document.getElementById("btn-taraju-skip-next")?.addEventListener("click", () => {
+    advanceToNextRound(user);
+  });
+
+  document.getElementById("btn-taraju-play-again")?.addEventListener("click", () => {
+    restartTarajuMatch(user);
+  });
+
+  document.getElementById("btn-taraju-victory-exit")?.addEventListener("click", () => {
+    stopTarajuGameTimers();
+    tarajuGameState = createInitialTarajuGameState();
     isGameStarted = false;
     renderRoomLobbyView(user);
   });
 
-  document.getElementById("btn-game-leave")?.addEventListener("click", () => {
-    leaveCurrentRoom(user);
+  document.getElementById("btn-taraju-leave")?.addEventListener("click", () => {
+    stopTarajuGameTimers();
+    tarajuGameState = createInitialTarajuGameState();
+    isGameStarted = false;
+    renderRoomLobbyView(user);
   });
 }
+
 
 // ==========================================
 // ROOM CONNECTION & LIFECYCLE HANDLERS
@@ -1350,7 +2367,9 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
     if (data?.players && Array.isArray(data.players) && data.players.length > 0) {
       roomPlayers = data.players;
     }
-    updateOrRenderLobby(user);
+    if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+      updateOrRenderLobby(user);
+    }
   });
 
   room.onMessage("room_roster", (data: any) => {
@@ -1365,39 +2384,178 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
       if (data.maxPlayers && currentRoomSummary) {
         currentRoomSummary.maxPlayers = data.maxPlayers;
       }
-      updateOrRenderLobby(user);
+      if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+        updateOrRenderLobby(user);
+      }
     }
   });
 
   room.onMessage("player_joined", () => {
     syncPlayersFromRoomState(room, user);
-    updateOrRenderLobby(user);
+    if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+      updateOrRenderLobby(user);
+    }
   });
 
   room.onMessage("player_left", () => {
     syncPlayersFromRoomState(room, user);
-    updateOrRenderLobby(user);
+    if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+      updateOrRenderLobby(user);
+    }
   });
 
   room.onMessage("host_changed", () => {
     syncPlayersFromRoomState(room, user);
-    updateOrRenderLobby(user);
+    if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+      updateOrRenderLobby(user);
+    }
   });
 
   room.onMessage("player_ready_changed", (data: any) => {
     const target = roomPlayers.find((p) => p.sessionId === data?.sessionId);
     if (target) {
       target.isReady = Boolean(data?.isReady);
-      updateOrRenderLobby(user);
+      if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+        updateOrRenderLobby(user);
+      }
     }
   });
 
   room.onMessage("game_started", () => {
+    startMatchmakingCountdown(user);
+  });
+
+  room.onMessage("countdown_tick", (data: any) => {
+    if (typeof data?.count === "number") {
+      tarajuGameState.countdownSeconds = data.count;
+      updateCountdownOverlay(data.count);
+      if (data.count > 0) playTarajuSound("tick");
+    }
+  });
+
+  room.onMessage("round_started", (data: any) => {
+    stopTarajuGameTimers();
+    removeCountdownOverlay();
+    tarajuGameState.roundNumber = data?.round || tarajuGameState.roundNumber;
+    tarajuGameState.phase = "playing";
+    tarajuGameState.timerSeconds = data?.timer || 180;
+    tarajuGameState.lastResult = null;
     isGameStarted = true;
+
+    if (data?.players && Array.isArray(data.players) && data.players.length > 0) {
+      tarajuGameState.players = data.players.map((p: any) => ({
+        sessionId: p.sessionId,
+        userId: p.userId,
+        name: p.name,
+        picture: p.picture,
+        isHost: Boolean(p.isHost),
+        points: p.points ?? 10,
+        currentGuess: null,
+        isSubmitted: false,
+        isEliminated: Boolean(p.isEliminated),
+        lastRoundWon: false,
+        pointsLostLastRound: 0,
+        isAi: false,
+      }));
+    }
+
+    playTarajuSound("start");
+    renderGameActiveView(user);
+    startRoundTimer(user);
+  });
+
+  room.onMessage("round_timer_tick", (data: any) => {
+    if (typeof data?.timer === "number") {
+      tarajuGameState.timerSeconds = data.timer;
+      const timerDigits = document.getElementById("taraju-top-timer-digits");
+      if (timerDigits) {
+        timerDigits.innerText = formatTimerDisplay(data.timer);
+      }
+      const timerBox = document.getElementById("taraju-top-timer-box");
+      if (timerBox) {
+        if (data.timer <= 30) {
+          timerBox.classList.add("timer-warning");
+        } else {
+          timerBox.classList.remove("timer-warning");
+        }
+      }
+    }
+  });
+
+  room.onMessage("player_guess_submitted", (data: any) => {
+    const target = tarajuGameState.players.find((p) => p.sessionId === data?.sessionId);
+    if (target) {
+      target.isSubmitted = true;
+      renderGameActiveView(user);
+    }
+  });
+
+  room.onMessage("round_evaluated", (data: any) => {
+    if (data) {
+      tarajuGameState.lastResult = {
+        round: data.round,
+        sum: data.sum,
+        average: data.average,
+        target: data.target,
+        winnerSessionIds: data.winnerSessionIds || [],
+        guesses: data.guesses || [],
+      };
+      tarajuGameState.phase = "results";
+      stopTarajuGameTimers();
+
+      if (data.players && Array.isArray(data.players)) {
+        data.players.forEach((sp: any) => {
+          const lp = tarajuGameState.players.find((p) => p.sessionId === sp.sessionId);
+          if (lp) {
+            lp.points = sp.points;
+            lp.isEliminated = sp.isEliminated;
+            lp.lastRoundWon = sp.lastRoundWon;
+            lp.pointsLostLastRound = sp.lastRoundWon ? 0 : 1;
+            lp.currentGuess = sp.currentGuess;
+          }
+        });
+      }
+
+      const localPlayer = tarajuGameState.players.find(
+        (p) => p.sessionId === (activeRoom?.sessionId || "") || p.userId === user.id
+      );
+      if (localPlayer && data.winnerSessionIds?.includes(localPlayer.sessionId)) {
+        playTarajuSound("win");
+      } else {
+        playTarajuSound("lose");
+      }
+
+      renderGameActiveView(user);
+    }
+  });
+
+  room.onMessage("next_round_countdown", (data: any) => {
+    if (typeof data?.seconds === "number") {
+      tarajuGameState.nextRoundCountdown = data.seconds;
+      const badge = document.getElementById("taraju-next-countdown-badge");
+      if (badge) {
+        badge.innerText = `Next round starts in ${data.seconds}s...`;
+      }
+    }
+  });
+
+  room.onMessage("game_over", (_data: any) => {
+    tarajuGameState.phase = "victory";
+    playTarajuSound("fanfare");
     renderGameActiveView(user);
   });
 
   room.onMessage("chat_message", (msg: ChatMessage) => {
+    if (msg.text && msg.text.startsWith("__TAR_SYNC__:")) {
+      try {
+        const action = JSON.parse(msg.text.slice("__TAR_SYNC__:".length));
+        handleTarajuSyncAction(action, user);
+      } catch (e) {
+        console.warn("Failed to parse game sync message:", e);
+      }
+      return;
+    }
+
     roomChatHistory.push(msg);
     const chatWrap = document.getElementById("chat-messages-wrap");
     if (chatWrap) {
@@ -1416,10 +2574,14 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
 
   room.onStateChange(() => {
     syncPlayersFromRoomState(room, user);
-    updateOrRenderLobby(user);
+    if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+      updateOrRenderLobby(user);
+    }
   });
 
   room.onLeave(() => {
+    stopTarajuGameTimers();
+    removeCountdownOverlay();
     activeRoom = null;
     isGameStarted = false;
     roomPlayers = [];
@@ -1435,7 +2597,7 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
   renderRoomLobbyView(user);
 }
 
-function syncPlayersFromRoomState(room: any, currentUser: UserProfile) {
+function syncPlayersFromRoomState(room: any, _currentUser?: UserProfile) {
   if (!room || !room.state || !room.state.players) return;
 
   const list: JoinedPlayer[] = [];
@@ -1457,6 +2619,9 @@ function syncPlayersFromRoomState(room: any, currentUser: UserProfile) {
 }
 
 function leaveCurrentRoom(user: UserProfile) {
+  stopTarajuGameTimers();
+  removeCountdownOverlay();
+  tarajuGameState = createInitialTarajuGameState();
   if (activeRoom) {
     try {
       activeRoom.leave();
@@ -1473,8 +2638,13 @@ function leaveCurrentRoom(user: UserProfile) {
 }
 
 function startRoomMatch(user: UserProfile) {
-  if (!activeRoom) return;
-  activeRoom.send("start_game");
+  if (activeRoom) {
+    try {
+      activeRoom.send("start_game");
+    } catch (e) {}
+  }
+  broadcastTarajuAction({ type: "START_COUNTDOWN" });
+  startMatchmakingCountdown(user);
 }
 
 function escapeHtml(text: string): string {
@@ -1748,7 +2918,7 @@ function setupGisButton(container: HTMLElement) {
   }
 }
 
-function renderReconnectingView(user: UserProfile) {
+function renderReconnectingView(_user: UserProfile) {
   const app = document.getElementById("app");
   if (!app) return;
   app.innerHTML = `

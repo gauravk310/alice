@@ -2325,75 +2325,1027 @@ body {
   color: #ffffff;
 }
 
-/* Game Started Active View (Light Mode) */
-.game-active-arena {
+/* ==========================================
+   TARAJU ARENA & MATCHMAKING COUNTDOWN STYLES
+   Replicating the exact aesthetic of taraju-banner.png
+   ========================================== */
+
+/* 1. Fullscreen Matchmaking Countdown Overlay (10 -> 0) */
+.taraju-countdown-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #030814;
+  background-image: 
+    radial-gradient(circle at center, rgba(14, 165, 233, 0.18) 0%, rgba(2, 6, 16, 0.95) 75%),
+    linear-gradient(rgba(56, 189, 248, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.1) 1px, transparent 1px);
+  background-size: 100% 100%, 36px 36px, 36px 36px;
+  color: #ffffff;
+  padding: 24px;
+  animation: tarajuFadeIn 0.3s ease-out;
+}
+
+@keyframes tarajuFadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.taraju-countdown-modal {
+  max-width: 680px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.taraju-countdown-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  padding: 6px 18px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.taraju-countdown-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  margin: 0;
+  text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+}
+
+.taraju-countdown-number-ring {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  border: 4px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 0 35px rgba(56, 189, 248, 0.35), inset 0 0 25px rgba(56, 189, 248, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 12px 0;
+  animation: tarajuPulseRing 1s ease-in-out infinite;
+}
+
+@keyframes tarajuPulseRing {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.3), inset 0 0 20px rgba(56, 189, 248, 0.15);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 55px rgba(56, 189, 248, 0.6), inset 0 0 35px rgba(56, 189, 248, 0.35);
+  }
+}
+
+.taraju-countdown-digit {
+  font-size: 88px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  color: #38bdf8;
+  text-shadow: 0 0 25px rgba(56, 189, 248, 0.8);
+  animation: tarajuDigitTick 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes tarajuDigitTick {
+  0% { transform: scale(1.4); opacity: 0.3; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.taraju-countdown-subtitle {
+  font-size: 14px;
+  color: #94a3b8;
+  max-width: 480px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.taraju-countdown-players-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.taraju-countdown-player-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 100px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.taraju-countdown-player-points {
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+
+/* 2. Taraju Fullscreen Active Arena (Dark Cyberpunk Sci-Fi Grid) */
+.taraju-arena-screen {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: #030814;
+  background-image: 
+    radial-gradient(circle at 50% 15%, #082647 0%, #030814 75%),
+    linear-gradient(rgba(14, 165, 233, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.12) 1px, transparent 1px);
+  background-size: 100% 100%, 36px 36px, 36px 36px;
+  color: #ffffff;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Arena Navigation & Top Timer Bar */
+.taraju-arena-header {
+  height: 68px;
+  background: rgba(3, 8, 20, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.taraju-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.btn-taraju-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-taraju-back:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #ffffff;
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.taraju-room-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 4px 10px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+}
+
+/* TOP TIMER DISPLAY - Central high-tech element */
+.taraju-header-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.taraju-round-badge {
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #facc15;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  text-transform: uppercase;
+}
+
+.taraju-top-timer-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(11, 23, 44, 0.95);
+  border: 2px solid #0284c7;
+  box-shadow: 0 0 20px rgba(2, 132, 199, 0.35);
+  padding: 6px 20px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.taraju-top-timer-box.timer-warning {
+  border-color: #ef4444;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+  animation: tarajuTimerWarningPulse 1s ease-in-out infinite;
+}
+
+@keyframes tarajuTimerWarningPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.04); box-shadow: 0 0 35px rgba(239, 68, 68, 0.8); }
+}
+
+.taraju-top-timer-icon {
+  color: #38bdf8;
+  display: flex;
+  align-items: center;
+}
+
+.taraju-top-timer-box.timer-warning .taraju-top-timer-icon {
+  color: #ef4444;
+}
+
+.taraju-top-timer-digits {
+  font-size: 24px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  color: #38bdf8;
+  letter-spacing: 2px;
+}
+
+.taraju-top-timer-box.timer-warning .taraju-top-timer-digits {
+  color: #f87171;
+}
+
+.taraju-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.taraju-active-counter {
+  font-size: 13px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.taraju-active-counter strong {
+  color: #34d399;
+}
+
+/* 3. Main Stage: Replicating taraju-banner.png layout */
+.taraju-main-stage {
   flex: 1;
   width: 100%;
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 32px;
+  padding: 24px 20px 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 28px;
 }
 
-.game-active-banner {
+/* Stage Subtitle & Status Banner */
+.taraju-stage-status-strip {
   width: 100%;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  padding: 24px 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  background: rgba(11, 23, 44, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 14px;
+  padding: 12px 24px;
 }
 
-.duel-control-card {
+.taraju-rule-hint {
+  font-size: 13.5px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.taraju-rule-hint strong {
+  color: #e2e8f0;
+}
+
+.taraju-phase-pill {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 14px;
+  border-radius: 100px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.taraju-phase-pill.phase-guess {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid #10b981;
+  color: #34d399;
+}
+
+.taraju-phase-pill.phase-result {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid #f59e0b;
+  color: #fbbf24;
+}
+
+.taraju-phase-pill.phase-over {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #f87171;
+}
+
+/* 4. The Scale Arena Row (EXACT MATCH to taraju-banner.png) */
+.taraju-scale-grid {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
   width: 100%;
-  max-width: 680px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  padding: 36px 40px;
+  padding: 20px 10px;
+  min-height: 270px;
+}
+
+/* Single Player Column */
+.taraju-player-col {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  width: 146px;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.duel-number-display {
-  font-size: 72px;
+/* WINNER CROWN & BADGE (Appears above winner's avatar, like taraju-banner.png) */
+.taraju-col-winner-label {
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.taraju-player-col.is-winner .taraju-col-winner-label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.taraju-crown-icon {
+  font-size: 20px;
+  filter: drop-shadow(0 0 10px rgba(250, 204, 21, 0.8));
+  animation: tarajuCrownBounce 1.2s ease-in-out infinite;
+}
+
+@keyframes tarajuCrownBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.taraju-winner-text {
+  font-size: 15px;
   font-weight: 900;
-  color: var(--play-green);
+  letter-spacing: 2px;
+  color: #facc15;
+  text-shadow: 0 0 15px rgba(250, 204, 21, 0.9), 0 0 30px rgba(234, 88, 12, 0.6);
+  text-transform: uppercase;
+}
+
+/* Outer frame grouping Avatar + Number Box when winning */
+.taraju-card-frame {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 20px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+/* THE ICONIC WINNER RED/ORANGE NEON BORDER FROM taraju-banner.png */
+.taraju-player-col.is-winner .taraju-card-frame {
+  border-color: #ef4444;
+  box-shadow: 
+    0 0 25px rgba(239, 68, 68, 0.65), 
+    inset 0 0 15px rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+/* Avatar Box (Square card with rounded corners, matching taraju-banner.png) */
+.taraju-avatar-box {
+  width: 130px;
+  height: 130px;
+  border-radius: 18px;
+  border: 2px solid #1e3a5f;
+  background: rgba(11, 23, 44, 0.9);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s ease;
+}
+
+.taraju-player-col.is-winner .taraju-avatar-box {
+  border-color: #ef4444;
+  background: rgba(20, 10, 20, 0.95);
+}
+
+.taraju-avatar-circle-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1e293b;
+  border: 2px solid rgba(56, 189, 248, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+.taraju-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.taraju-avatar-initials {
+  font-size: 24px;
+  font-weight: 800;
+  color: #38bdf8;
+}
+
+.taraju-player-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.taraju-player-points-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 3px;
+  background: rgba(2, 132, 199, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+
+.taraju-player-points-tag.points-lost {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #f87171;
+  animation: tarajuPointLossShake 0.5s ease;
+}
+
+@keyframes tarajuPointLossShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+.taraju-player-points-tag.points-safe {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+/* Submission Indicator Pill inside Avatar */
+.taraju-status-pill {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.taraju-status-pill.ready {
+  background: #10b981;
+}
+
+/* NUMBER BADGE BOX (Directly under avatar, exact replica of mint box in taraju-banner.png) */
+.taraju-number-box {
+  width: 130px;
+  height: 58px;
+  border-radius: 12px;
+  background: #c6f6d5;
+  box-shadow: 0 0 18px rgba(198, 246, 213, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  color: #042f2c;
+  letter-spacing: 1px;
+  border: 1px solid #a7f3d0;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.taraju-player-col.is-winner .taraju-number-box {
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.7);
+}
+
+/* When guessing phase is active, hide opponents' numbers */
+.taraju-number-box.is-secret {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #64748b;
+  box-shadow: none;
+  font-size: 24px;
+}
+
+/* ELIMINATED PLAYER STATE */
+.taraju-player-col.is-eliminated {
+  opacity: 0.38;
+  filter: grayscale(0.8);
+}
+
+.taraju-player-col.is-eliminated .taraju-avatar-box {
+  border-color: #475569;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.taraju-player-col.is-eliminated .taraju-number-box {
+  background: #334155;
+  color: #94a3b8;
+  box-shadow: none;
+  border-color: #475569;
+}
+
+.taraju-eliminated-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-12deg);
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* 5. TOTAL / TARGET RESULT DISPLAY (Matching taraju-banner.png) */
+.taraju-total-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  animation: tarajuResultReveal 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes tarajuResultReveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.taraju-total-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.taraju-total-label {
+  font-size: 26px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  color: #ffffff;
+  letter-spacing: 3px;
+  text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+}
+
+.taraju-total-pill {
+  min-width: 140px;
+  height: 56px;
+  border-radius: 12px;
+  background: #c6f6d5;
+  box-shadow: 0 0 25px rgba(198, 246, 213, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  font-size: 32px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  color: #042f2c;
+  letter-spacing: 2px;
+  border: 1px solid #a7f3d0;
+}
+
+.taraju-calculation-box {
+  background: rgba(11, 23, 44, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 16px;
+  padding: 14px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.taraju-calc-line {
+  font-size: 13.5px;
+  color: #cbd5e1;
+}
+
+.taraju-calc-line strong {
+  color: #38bdf8;
+}
+
+.taraju-calc-winner-line {
+  font-size: 14px;
+  font-weight: 700;
+  color: #facc15;
+}
+
+/* Next Round Countdown strip */
+.taraju-next-round-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.taraju-next-countdown-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 6px 16px;
+  border-radius: 100px;
+}
+
+.btn-taraju-skip-next {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 18px;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-taraju-skip-next:hover {
+  background: #0369a1;
+  transform: translateY(-1px);
+}
+
+/* 6. Player Guess Input Deck (Bottom Section) */
+.taraju-player-controls {
+  width: 100%;
+  max-width: 640px;
+  background: rgba(11, 23, 44, 0.9);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  border-radius: 24px;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.taraju-control-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.taraju-control-display-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-taraju-step {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-taraju-step:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.2);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.taraju-number-input {
+  width: 130px;
+  height: 64px;
+  border-radius: 16px;
+  background: rgba(3, 8, 20, 0.95);
+  border: 2px solid #0284c7;
+  box-shadow: 0 0 20px rgba(2, 132, 199, 0.3);
+  color: #38bdf8;
+  font-size: 40px;
+  font-weight: 900;
+  font-family: 'Courier New', monospace;
+  text-align: center;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.taraju-number-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 25px rgba(56, 189, 248, 0.6);
+}
+
+.taraju-slider-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.taraju-slider {
+  width: 100%;
+  accent-color: #38bdf8;
+  cursor: pointer;
+  height: 8px;
+  border-radius: 6px;
+}
+
+.taraju-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
   font-family: monospace;
 }
 
-.duel-slider {
-  width: 100%;
-  accent-color: var(--play-green);
-  cursor: pointer;
-  height: 8px;
+.taraju-presets-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.btn-submit-choice {
-  padding: 14px 44px;
+.btn-taraju-preset {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-taraju-preset:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+
+.btn-taraju-lock-choice {
+  width: 100%;
+  padding: 14px 28px;
   border-radius: 100px;
-  background: var(--play-green);
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
   color: #ffffff;
   border: none;
   font-size: 16px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(1, 135, 95, 0.3);
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-taraju-lock-choice:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(16, 185, 129, 0.6);
+}
+
+.btn-taraju-lock-choice.is-locked {
+  background: #0284c7;
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
+}
+
+/* Eliminated Player Spectator notice */
+.taraju-eliminated-notice {
+  text-align: center;
+  padding: 16px;
+  color: #94a3b8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.taraju-eliminated-notice-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ef4444;
+  letter-spacing: 1px;
+}
+
+/* 7. Ultimate Champion Victory Modal */
+.taraju-victory-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 16, 0.92);
+  backdrop-filter: blur(12px);
+  padding: 24px;
+  animation: tarajuFadeIn 0.4s ease;
+}
+
+.taraju-victory-card {
+  max-width: 520px;
+  width: 100%;
+  background: rgba(11, 23, 44, 0.95);
+  border: 2px solid #facc15;
+  box-shadow: 0 0 50px rgba(250, 204, 21, 0.4);
+  border-radius: 28px;
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+}
+
+.taraju-victory-crown {
+  font-size: 56px;
+  filter: drop-shadow(0 0 20px rgba(250, 204, 21, 0.8));
+  animation: tarajuCrownBounce 1s ease-in-out infinite;
+}
+
+.taraju-victory-title {
+  font-size: 32px;
+  font-weight: 900;
+  color: #facc15;
+  text-shadow: 0 0 20px rgba(250, 204, 21, 0.6);
+  margin: 0;
+}
+
+.taraju-victory-survivor-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.taraju-victory-stats {
+  font-size: 14px;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 10px 20px;
+  border-radius: 12px;
+}
+
+.taraju-victory-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btn-taraju-play-again {
+  flex: 1;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: #facc15;
+  color: #0f172a;
+  border: none;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.btn-submit-choice:hover {
-  background: var(--play-green-hover);
-  transform: translateY(-1px);
+.btn-taraju-play-again:hover {
+  background: #eab308;
+  transform: translateY(-2px);
+}
+
+.btn-taraju-exit-lobby {
+  flex: 1;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-taraju-exit-lobby:hover {
+  background: rgba(56, 189, 248, 0.15);
+}
+
+@media (max-width: 900px) {
+  .taraju-scale-grid {
+    gap: 12px;
+  }
+  .taraju-player-col {
+    width: 120px;
+  }
+  .taraju-avatar-box {
+    width: 110px;
+    height: 110px;
+  }
+  .taraju-number-box {
+    width: 110px;
+    height: 50px;
+    font-size: 26px;
+  }
+  .taraju-total-label {
+    font-size: 20px;
+  }
+  .taraju-total-pill {
+    min-width: 110px;
+    height: 48px;
+    font-size: 26px;
+  }
 }
 
 @media (max-width: 900px) {
