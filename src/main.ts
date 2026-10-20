@@ -1,4 +1,5 @@
 import { Client } from "@colyseus/sdk";
+import Swal from "sweetalert2";
 import "./style.css";
 import {
   type UserProfile,
@@ -13,14 +14,11 @@ import {
   ShieldCheck,
   LogOut,
   Gamepad2,
-  Sparkles,
   ChevronLeft,
-  ChevronRight,
   Search,
   HelpCircle,
   X,
   Play,
-  Monitor,
   Settings,
   Trophy,
   AlertTriangle,
@@ -32,8 +30,9 @@ import {
   RefreshCw,
   Radio,
   DoorOpen,
-  Swords,
-  CheckCircle2,
+  Unlock,
+  MessageSquare,
+  User,
 } from "./icons.ts";
 
 const serverUrl =
@@ -81,13 +80,57 @@ let activeRoom: any = null;
 let currentRoomSummary: RoomSummary | null = null;
 let roomPlayers: JoinedPlayer[] = [];
 let roomChatHistory: ChatMessage[] = [];
+let isLobbyChatOpen = false;
+let unreadChatCount = 0;
+
+function updateFloatingChatBadge() {
+  const badge = document.getElementById("chat-unread-badge");
+  const btn = document.getElementById("btn-floating-chat");
+  if (badge) {
+    if (unreadChatCount > 0 && !isLobbyChatOpen) {
+      badge.textContent = unreadChatCount > 9 ? "9+" : String(unreadChatCount);
+      badge.style.display = "flex";
+      btn?.classList.add("has-unread");
+    } else {
+      badge.style.display = "none";
+      btn?.classList.remove("has-unread");
+    }
+  }
+}
+
+function openLobbyChat() {
+  isLobbyChatOpen = true;
+  unreadChatCount = 0;
+  updateFloatingChatBadge();
+  const drawer = document.getElementById("lobby-chat-drawer");
+  const btn = document.getElementById("btn-floating-chat");
+  drawer?.classList.add("is-open");
+  btn?.classList.add("is-hidden");
+  const input = document.getElementById("input-chat") as HTMLInputElement;
+  if (input) {
+    setTimeout(() => input.focus(), 120);
+  }
+  const chatWrap = document.getElementById("chat-messages-wrap");
+  if (chatWrap) {
+    chatWrap.scrollTop = chatWrap.scrollHeight;
+  }
+}
+
+function closeLobbyChat() {
+  isLobbyChatOpen = false;
+  const drawer = document.getElementById("lobby-chat-drawer");
+  const btn = document.getElementById("btn-floating-chat");
+  drawer?.classList.remove("is-open");
+  btn?.classList.remove("is-hidden");
+}
+
 let availableRoomsList: RoomSummary[] = [];
 let isCreateRoomModalOpen = false;
 let roomSearchFilter = "";
 let roomsPollingInterval: any = null;
 let selectedMaxPlayers = 6;
 let isGameStarted = false;
-let currentChosenBalance = 50;
+let currentChosenBalance: number | null = null;
 
 function getColyseusClient(): Client {
   if (!colyseusClient) {
@@ -306,207 +349,154 @@ function renderArenaView(user: UserProfile) {
 }
 
 // ------------------------------------------
-// 1. ROOM BROWSER VIEW (Full Width & Clean Light Theme)
+// 1. ROOM BROWSER VIEW (PUBG Tactical Custom Room Structure)
 // ------------------------------------------
 async function renderRoomBrowserView(user: UserProfile) {
   const app = document.getElementById("app");
   if (!app) return;
 
-  const avatarMarkupSmall = user.picture
-    ? `<img src="${user.picture}" alt="${user.name}" class="avatar-img-circle" referrerpolicy="no-referrer" />`
-    : `<div class="avatar-initials-circle">${(user.name || "U").charAt(0).toUpperCase()}</div>`;
-
-  const avatarMarkupLarge = user.picture
-    ? `<img src="${user.picture}" alt="${user.name}" class="dropdown-avatar-large" referrerpolicy="no-referrer" />`
-    : `<div class="dropdown-avatar-initials-large">${(user.name || "U").charAt(0).toUpperCase()}</div>`;
-
   app.innerHTML = `
-    <div class="arena-fullscreen-wrapper">
-      <!-- Alice Navigation Header -->
-      <header class="playstore-header">
-        <div class="header-left">
-          <div class="navbar-brand" id="brand-to-store" title="Back to Games" style="cursor: pointer;">
-            <div class="navbar-logo-icon">
-              ${renderLucideIcon(Gamepad2, { width: 20, height: 20 })}
-            </div>
-            <div>
-              <div class="navbar-title">Alice Multiplayer</div>
-              <div class="navbar-subtitle">Arena v0.1</div>
-            </div>
-          </div>
-
-          <nav class="playstore-nav-tabs">
-            <div class="playstore-tab active" id="tab-to-store" data-tab="games" style="cursor: pointer;">Games</div>
-          </nav>
-        </div>
-
-        <div class="header-right">
-          <button class="icon-btn-round" title="Search games">
-            ${renderLucideIcon(Search, { width: 19, height: 19 })}
-          </button>
-          <button class="icon-btn-round" title="Help & feedback">
-            ${renderLucideIcon(HelpCircle, { width: 19, height: 19 })}
-          </button>
-
-          <!-- Profile Avatar Button -->
-          <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
-            ${avatarMarkupSmall}
-          </button>
-
-          <!-- Profile Dropdown Menu -->
-          ${renderProfileDropdownHtml(user, avatarMarkupLarge)}
-        </div>
-      </header>
-
-      <!-- Sub-Header Bar (Back to Games & Live Status) -->
-      <div class="arena-fullscreen-subbanner">
-        <div class="arena-nav-left">
-          <button class="btn-arena-back" id="btn-back-to-store" title="Return to Google Play storefront">
-            ${renderLucideIcon(ChevronLeft, { width: 16, height: 16 })}
-            <span>Back to Games</span>
-          </button>
-        </div>
-
-        <div class="arena-nav-right">
-          <div class="arena-info-strip">
-            <img src="/taraju-icon.jpg" alt="Taraju Icon" class="arena-icon-badge" />
-            <div>
-              <div class="arena-title-text">Taraju Multiplayer Arena</div>
-              <div class="arena-status-badge">
-                <span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;"></span>
-                Colyseus Live Room: 2567
+    <!-- Tactical Custom Room Viewport (Full Screen) -->
+    <main class="pubg-room-wrapper">
+      <div class="pubg-room-window">
+        <!-- Top Header Bar: Enter Room ID + Enter Button & Close Button -->
+          <div class="pubg-room-topbar">
+            <div class="pubg-topbar-left">
+              <div class="pubg-room-id-box">
+                <input 
+                  type="text" 
+                  id="input-room-id-search" 
+                  class="pubg-room-id-input" 
+                  placeholder="Enter Room ID" 
+                  value="${roomSearchFilter}"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+                <button id="btn-room-id-enter" class="btn-pubg-enter">
+                  Enter
+                </button>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Main Matchmaking Hub Container (Full Width Light Mode) -->
-      <main class="matchmaking-hub-content">
-        <!-- Hero Header with Create Room Button -->
-        <section class="matchmaking-hero-header">
-          <div class="hero-header-text">
-            <h1>
-              ${renderLucideIcon(Swords, { width: 24, height: 24, style: "color: var(--play-green);" })}
-              Live Matchmaking Arena
-            </h1>
-            <p>
-              Host a room or join an open lobby with players. Guess closest to 0.7× the collective average in this psychological balance duel.
-            </p>
-          </div>
-
-          <div class="hero-header-actions">
-            <button class="btn-create-room-primary" id="btn-open-create-modal">
-              ${renderLucideIcon(Plus, { width: 18, height: 18 })}
-              <span>Create Room</span>
-            </button>
-          </div>
-        </section>
-
-        <!-- Search, Code Join, Refresh Toolbar -->
-        <section class="matchmaking-toolbar">
-          <div class="toolbar-left-tools">
-            <div class="search-box-wrapper">
-              <span class="search-icon">
-                ${renderLucideIcon(Search, { width: 16, height: 16 })}
-              </span>
-              <input 
-                type="text" 
-                id="input-filter-rooms" 
-                class="input-search-rooms" 
-                placeholder="Search rooms or host name..." 
-                value="${roomSearchFilter}"
-              />
-            </div>
-
-            <div class="code-join-group">
-              <input 
-                type="text" 
-                id="input-join-code" 
-                class="input-room-code" 
-                placeholder="TRJ-CODE" 
-                maxlength="10"
-              />
-              <button class="btn-join-code" id="btn-join-by-code">
-                Join Code
+            <div class="pubg-topbar-right">
+              <button id="btn-pubg-window-close" class="btn-pubg-close" title="Exit to Games">
+                ${renderLucideIcon(X, { width: 20, height: 20 })}
               </button>
             </div>
           </div>
 
-          <button class="btn-refresh-rooms" id="btn-refresh-rooms" title="Refresh available rooms">
-            ${renderLucideIcon(RefreshCw, { width: 14, height: 14 })}
-            <span>Refresh</span>
-          </button>
-        </section>
-
-        <!-- Rooms List Header -->
-        <div class="rooms-section-header">
-          <div class="rooms-section-title">
-            <span>Available Open Rooms</span>
-            <span class="rooms-count-pill" id="rooms-count-badge">Loading...</span>
+          <!-- Main Room List Container -->
+          <div class="pubg-room-list" id="rooms-grid-container">
+            <div class="pubg-room-loading">
+              <div class="pubg-loading-spinner"></div>
+              <span>Scanning for active custom rooms...</span>
+            </div>
           </div>
-        </div>
 
-        <!-- Rooms Grid Container -->
-        <div class="rooms-grid" id="rooms-grid-container">
-          <div style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 40px;">
-            Scanning for active rooms...
+          <!-- Bottom Footer Bar: Refresh & Create Room Buttons (Right-Aligned, No Chat) -->
+          <div class="pubg-room-footer">
+            <div class="pubg-footer-right">
+              <button id="btn-refresh-rooms" class="btn-pubg-refresh" title="Refresh available rooms">
+                ${renderLucideIcon(RefreshCw, { width: 15, height: 15 })}
+                <span>Refresh</span>
+              </button>
+              <button id="btn-open-create-modal" class="btn-pubg-create-room">
+                <span>Create Room</span>
+              </button>
+            </div>
           </div>
         </div>
       </main>
 
-      <!-- Create Room Modal Backdrop (Hidden by default) -->
-      <div id="modal-create-room-backdrop" class="modal-backdrop" style="display: ${isCreateRoomModalOpen ? "flex" : "none"};">
-        <div class="modal-content-card">
-          <div class="modal-header">
-            <div class="modal-title">Create Matchmaking Room</div>
-            <button class="modal-close-btn" id="btn-close-create-modal" title="Close">
-              ${renderLucideIcon(X, { width: 16, height: 16 })}
+    <!-- Create Room Modal Backdrop (Fixed Viewport Overlay) -->
+    <div id="modal-create-room-backdrop" class="modal-backdrop ${isCreateRoomModalOpen ? "show" : "hidden"}" style="display: ${isCreateRoomModalOpen ? "flex" : "none"};">
+      <div class="modal-content-card pubg-modal-card">
+        <div class="modal-header">
+          <div class="modal-title">
+            ${renderLucideIcon(Plus, { width: 18, height: 18, style: "color: #facc15;" })}
+            Create Custom Room
+          </div>
+          <button class="modal-close-btn" id="btn-close-create-modal" title="Close">
+            ${renderLucideIcon(X, { width: 16, height: 16 })}
+          </button>
+        </div>
+
+        <!-- Room Name Input -->
+        <div class="form-field-group">
+          <label class="form-field-label">Room Name</label>
+          <input 
+            type="text" 
+            id="input-new-room-name" 
+            class="modal-input-text" 
+            value="${user.name}'s Arena" 
+            maxlength="32" 
+            placeholder="e.g. Diamond Squad Duel" 
+          />
+        </div>
+
+        <!-- Game Mode / Slots Selection -->
+        <div class="form-field-group">
+          <label class="form-field-label">Max Players (Slots)</label>
+          <div class="pubg-modal-modes-grid" id="max-players-selector">
+            <button class="pubg-modal-mode-card ${selectedMaxPlayers === 2 ? "selected" : ""}" data-count="2">
+              <div class="pubg-diamond-badge small">
+                <div class="pubg-diamond-inner">
+                  ${renderLucideIcon(User, { width: 14, height: 14 })}
+                </div>
+              </div>
+              <div class="modal-mode-info">
+                <div class="modal-mode-title">Solo / Duo</div>
+                <div class="modal-mode-sub">2 Players</div>
+              </div>
+            </button>
+
+            <button class="pubg-modal-mode-card ${selectedMaxPlayers === 4 ? "selected" : ""}" data-count="4">
+              <div class="pubg-diamond-badge small">
+                <div class="pubg-diamond-inner">
+                  ${renderLucideIcon(Users, { width: 14, height: 14 })}
+                </div>
+              </div>
+              <div class="modal-mode-info">
+                <div class="modal-mode-title">Squad 4</div>
+                <div class="modal-mode-sub">4 Players</div>
+              </div>
+            </button>
+
+            <button class="pubg-modal-mode-card ${selectedMaxPlayers === 6 ? "selected" : ""}" data-count="6">
+              <div class="pubg-diamond-badge small">
+                <div class="pubg-diamond-inner">
+                  ${renderLucideIcon(Users, { width: 14, height: 14 })}
+                </div>
+              </div>
+              <div class="modal-mode-info">
+                <div class="modal-mode-title">Squad 6</div>
+                <div class="modal-mode-sub">6 Players</div>
+              </div>
+            </button>
+
+            <button class="pubg-modal-mode-card ${selectedMaxPlayers === 8 ? "selected" : ""}" data-count="8">
+              <div class="pubg-diamond-badge small">
+                <div class="pubg-diamond-inner">
+                  ${renderLucideIcon(Users, { width: 14, height: 14 })}
+                </div>
+              </div>
+              <div class="modal-mode-info">
+                <div class="modal-mode-title">Battle 8</div>
+                <div class="modal-mode-sub">8 Players</div>
+              </div>
             </button>
           </div>
+        </div>
 
-          <div class="form-field-group">
-            <label class="form-field-label">Room Name</label>
-            <input 
-              type="text" 
-              id="input-new-room-name" 
-              class="modal-input-text" 
-              value="${user.name}'s Arena" 
-              maxlength="32" 
-              placeholder="e.g. Diamond Duel" 
-            />
-          </div>
-
-          <div class="form-field-group">
-            <label class="form-field-label">Max Players (Slots)</label>
-            <div class="max-players-options" id="max-players-selector">
-              <button class="btn-player-pill ${selectedMaxPlayers === 2 ? "selected" : ""}" data-count="2">2 Players</button>
-              <button class="btn-player-pill ${selectedMaxPlayers === 4 ? "selected" : ""}" data-count="4">4 Players</button>
-              <button class="btn-player-pill ${selectedMaxPlayers === 6 ? "selected" : ""}" data-count="6">6 Players</button>
-              <button class="btn-player-pill ${selectedMaxPlayers === 8 ? "selected" : ""}" data-count="8">8 Players</button>
-            </div>
-          </div>
-
-          <div class="mode-info-card">
-            ${renderLucideIcon(Sparkles, { width: 18, height: 18, style: "color: var(--play-green); flex-shrink: 0;" })}
-            <div>
-              <strong>Among Us style lobby:</strong> You will be the Room Host. You can invite friends with the room code and start the match when players are ready.
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-modal-cancel" id="btn-cancel-create">Cancel</button>
-            <button class="btn-modal-submit" id="btn-submit-create-room">
-              Create & Host Lobby
-            </button>
-          </div>
+        <div class="modal-footer">
+          <button class="btn-modal-cancel" id="btn-cancel-create">Cancel</button>
+          <button class="btn-pubg-modal-submit" id="btn-submit-create-room">
+            Create & Host Room
+          </button>
         </div>
       </div>
     </div>
   `;
-
-  // Attach profile dropdown
-  attachProfileDropdownEvents();
 
   // Navigation back to Games store
   const returnToStore = () => {
@@ -514,16 +504,41 @@ async function renderRoomBrowserView(user: UserProfile) {
     saveNavigationState("store");
     renderPlayStoreView(user);
   };
-  document.getElementById("btn-back-to-store")?.addEventListener("click", returnToStore);
-  document.getElementById("brand-to-store")?.addEventListener("click", returnToStore);
-  document.getElementById("tab-to-store")?.addEventListener("click", returnToStore);
-  document.getElementById("menu-my-games")?.addEventListener("click", returnToStore);
+  document.getElementById("btn-pubg-window-close")?.addEventListener("click", returnToStore);
 
-  // Search input handler
-  const searchInput = document.getElementById("input-filter-rooms") as HTMLInputElement;
+  // Search input & Enter ID handler
+  const searchInput = document.getElementById("input-room-id-search") as HTMLInputElement;
   searchInput?.addEventListener("input", (e) => {
     roomSearchFilter = (e.target as HTMLInputElement).value;
     updateRoomsGridUi(user);
+  });
+
+  const handleEnterRoom = async () => {
+    const query = searchInput?.value?.trim();
+    if (!query) {
+      showToastNotification("Please enter a Room ID or Code");
+      return;
+    }
+
+    const exactMatch = availableRoomsList.find(
+      (r) =>
+        r.roomCode.toLowerCase() === query.toLowerCase() ||
+        r.roomId.toLowerCase() === query.toLowerCase()
+    );
+
+    if (exactMatch) {
+      await joinRoomById(user, exactMatch.roomId);
+    } else {
+      await joinRoomByCode(user, query);
+    }
+  };
+
+  document.getElementById("btn-room-id-enter")?.addEventListener("click", handleEnterRoom);
+  searchInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleEnterRoom();
+    }
   });
 
   // Refresh button
@@ -545,25 +560,38 @@ async function renderRoomBrowserView(user: UserProfile) {
 
   const openModal = () => {
     isCreateRoomModalOpen = true;
-    if (modalBackdrop) modalBackdrop.style.display = "flex";
+    if (modalBackdrop) {
+      modalBackdrop.style.display = "flex";
+      modalBackdrop.classList.remove("hidden");
+      modalBackdrop.classList.add("show");
+    }
   };
 
   const closeModal = () => {
     isCreateRoomModalOpen = false;
-    if (modalBackdrop) modalBackdrop.style.display = "none";
+    if (modalBackdrop) {
+      modalBackdrop.style.display = "none";
+      modalBackdrop.classList.remove("show");
+      modalBackdrop.classList.add("hidden");
+    }
   };
 
   openModalBtn?.addEventListener("click", openModal);
   closeModalBtn?.addEventListener("click", closeModal);
   cancelModalBtn?.addEventListener("click", closeModal);
+  modalBackdrop?.addEventListener("click", (e) => {
+    if (e.target === modalBackdrop) {
+      closeModal();
+    }
+  });
 
-  // Max players buttons
-  const playerPills = document.querySelectorAll(".btn-player-pill");
-  playerPills.forEach((pill) => {
-    pill.addEventListener("click", () => {
-      playerPills.forEach((p) => p.classList.remove("selected"));
-      pill.classList.add("selected");
-      selectedMaxPlayers = Number(pill.getAttribute("data-count")) || 6;
+  // Mode selection buttons
+  const modeCards = document.querySelectorAll(".pubg-modal-mode-card");
+  modeCards.forEach((card) => {
+    card.addEventListener("click", () => {
+      modeCards.forEach((c) => c.classList.remove("selected"));
+      card.classList.add("selected");
+      selectedMaxPlayers = Number(card.getAttribute("data-count")) || 6;
     });
   });
 
@@ -575,17 +603,6 @@ async function renderRoomBrowserView(user: UserProfile) {
     await createRoomAndEnter(user, roomName, selectedMaxPlayers);
   });
 
-  // Join by code submit
-  document.getElementById("btn-join-by-code")?.addEventListener("click", async () => {
-    const codeInput = document.getElementById("input-join-code") as HTMLInputElement;
-    const code = codeInput?.value?.trim();
-    if (!code) {
-      alert("Please enter a room code (e.g. TRJ-1234)");
-      return;
-    }
-    await joinRoomByCode(user, code);
-  });
-
   // Initial rooms fetch and auto polling
   await fetchOpenRooms();
   updateRoomsGridUi(user);
@@ -594,7 +611,6 @@ async function renderRoomBrowserView(user: UserProfile) {
 
 function updateRoomsGridUi(user: UserProfile) {
   const container = document.getElementById("rooms-grid-container");
-  const countBadge = document.getElementById("rooms-count-badge");
   if (!container) return;
 
   const filtered = availableRoomsList.filter((r) => {
@@ -603,34 +619,35 @@ function updateRoomsGridUi(user: UserProfile) {
     return (
       r.roomName.toLowerCase().includes(q) ||
       r.hostName.toLowerCase().includes(q) ||
-      r.roomCode.toLowerCase().includes(q)
+      r.roomCode.toLowerCase().includes(q) ||
+      r.roomId.toLowerCase().includes(q)
     );
   });
 
-  if (countBadge) {
-    countBadge.innerText = `${filtered.length} Open`;
-  }
-
   if (filtered.length === 0) {
     container.innerHTML = `
-      <div class="rooms-empty-card">
-        <div class="empty-radar-circle">
-          ${renderLucideIcon(Radio, { width: 34, height: 34 })}
+      <div class="pubg-room-empty">
+        <div class="pubg-empty-radar">
+          ${renderLucideIcon(Radio, { width: 38, height: 38 })}
         </div>
-        <h3>No open rooms found</h3>
-        <p>
-          There are currently no open lobbies matching your query. Create your own arena room and invite friends to duel!
-        </p>
-        <button class="btn-create-room-primary" id="btn-empty-create-room">
-          ${renderLucideIcon(Plus, { width: 16, height: 16 })}
-          <span>Create the First Room</span>
+        <div class="pubg-empty-title">No Active Custom Rooms</div>
+        <div class="pubg-empty-desc">
+          There are currently no open lobbies matching "${escapeHtml(roomSearchFilter || "your search")}". Create your own custom room and invite rivals to duel!
+        </div>
+        <button class="btn-pubg-create-room" id="btn-empty-create-room">
+          <span>Create Room</span>
         </button>
       </div>
     `;
 
     document.getElementById("btn-empty-create-room")?.addEventListener("click", () => {
+      isCreateRoomModalOpen = true;
       const modal = document.getElementById("modal-create-room-backdrop");
-      if (modal) modal.style.display = "flex";
+      if (modal) {
+        modal.style.display = "flex";
+        modal.classList.remove("hidden");
+        modal.classList.add("show");
+      }
     });
     return;
   }
@@ -640,62 +657,71 @@ function updateRoomsGridUi(user: UserProfile) {
       const isFull = room.playerCount >= room.maxPlayers;
       const isStarted = room.status === "in_progress";
 
-      // Visual slot dots
-      const dotsHtml = Array.from({ length: room.maxPlayers })
-        .map((_, i) => `<span class="slot-dot ${i < room.playerCount ? "filled" : ""}"></span>`)
-        .join("");
-
-      const hostAvatar = room.hostAvatar
-        ? `<img src="${room.hostAvatar}" alt="${room.hostName}" class="host-avatar-img" referrerpolicy="no-referrer" />`
-        : `<div class="host-avatar-initials">${(room.hostName || "H").charAt(0).toUpperCase()}</div>`;
+      // Mode label & icon: Squad, Solo, Duo
+      let modeName = "Squad";
+      let modeIcon = Users;
+      if (room.maxPlayers <= 1) {
+        modeName = "Solo";
+        modeIcon = User;
+      } else if (room.maxPlayers === 2) {
+        modeName = "Solo";
+        modeIcon = User;
+      } else if (room.maxPlayers <= 4) {
+        modeName = "Squad";
+        modeIcon = Users;
+      } else {
+        modeName = "Squad";
+        modeIcon = Users;
+      }
 
       return `
-        <div class="room-card" data-room-id="${room.roomId}">
-          <div class="room-card-header">
-            <div class="room-card-name-wrap">
-              <div class="room-card-name">${room.roomName}</div>
-              <div class="room-card-code">CODE: #${room.roomCode}</div>
+        <div class="pubg-room-row" data-room-id="${room.roomId}">
+          <!-- 1. Room Title & Host Info -->
+          <div class="pubg-room-info-wrap">
+            <div class="pubg-room-title" title="${escapeHtml(room.roomName)}">
+              ${escapeHtml(room.roomName)}
             </div>
-
-            <div class="room-card-status-badge ${isStarted ? "status-in-progress" : "status-waiting"}">
-              <span class="pulse-dot" style="background:${isStarted ? "#d97706" : "#059669"}; box-shadow:none;"></span>
-              <span>${isStarted ? "In Progress" : "Waiting"}</span>
-            </div>
-          </div>
-
-          <div class="room-card-host-row">
-            ${hostAvatar}
-            <div class="host-name-label">
-              <span>${room.hostName}</span>
-              <span class="host-crown-icon" title="Room Host">
-                ${renderLucideIcon(Crown, { width: 14, height: 14 })}
-              </span>
+            <div class="pubg-room-created-by">
+              Created by: <span class="pubg-host-name">${escapeHtml(room.hostName)}</span>
+              <span class="pubg-room-badge-id">#${room.roomCode}</span>
             </div>
           </div>
 
-          <div class="room-card-players-meta">
-            <div class="players-meta-top">
-              <span>Players Joined</span>
-              <span><strong>${room.playerCount}</strong> / ${room.maxPlayers}</span>
+          <!-- 2. Mode Emblem & Label (Diamond Gold Badge) -->
+          <div class="pubg-room-mode-wrap">
+            <div class="pubg-diamond-badge">
+              <div class="pubg-diamond-inner">
+                ${renderLucideIcon(modeIcon, { width: 16, height: 16 })}
+              </div>
             </div>
-            <div class="players-slots-pills">
-              ${dotsHtml}
+            <span class="pubg-mode-text">${modeName}</span>
+          </div>
+
+          <!-- 3. Lock Column -->
+          <div class="pubg-room-lock-wrap" title="Public Open Room">
+            ${renderLucideIcon(Unlock, { width: 18, height: 18, class: "pubg-lock-icon" })}
+          </div>
+
+          <!-- 4. Players Count (How many are present / How many max) -->
+          <div class="pubg-room-stats-wrap">
+            <div class="pubg-stats-line">
+              <span class="pubg-stats-label">Joined:</span>
+              <span class="pubg-stats-val stat-joined">${room.playerCount} / ${room.maxPlayers}</span>
+            </div>
+            <div class="pubg-stats-line">
+              <span class="pubg-stats-label">Status:</span>
+              <span class="pubg-stats-val ${isStarted ? "stat-spectate" : "stat-joined"}">${isStarted ? "In Progress" : "Waiting"}</span>
             </div>
           </div>
 
-          <div class="room-card-footer">
+          <!-- 5. Join Action Button -->
+          <div class="pubg-room-action-wrap">
             <button 
-              class="btn-join-room btn-card-join" 
-              data-room-id="${room.roomId}" 
+              class="btn-pubg-join btn-card-join ${isFull || isStarted ? "disabled" : ""}" 
+              data-room-id="${room.roomId}"
               ${isFull || isStarted ? "disabled" : ""}
             >
-              ${
-                isFull
-                  ? "Room Full"
-                  : isStarted
-                  ? "Match In Progress"
-                  : `Join Room ${renderLucideIcon(ChevronRight, { width: 14, height: 14 })}`
-              }
+              ${isFull ? "Full" : isStarted ? "Playing" : "Join"}
             </button>
           </div>
         </div>
@@ -744,12 +770,6 @@ function buildPodiumsHtml(user: UserProfile, maxSlots: number): string {
           <div class="podium-player-name">
             <span>${player.name}</span>
             ${isSelf ? `<span class="podium-you-tag">You</span>` : ""}
-          </div>
-
-          <div class="podium-status-tag ${
-            player.isHost ? "tag-host" : player.isReady ? "tag-ready" : "tag-waiting"
-          }">
-            ${player.isHost ? "👑 Host" : player.isReady ? "✅ Ready" : "⏳ In Lobby"}
           </div>
         </div>
       `;
@@ -822,20 +842,10 @@ function updateOrRenderLobby(user: UserProfile) {
           <span>Start Room</span>
         </button>
       `
-      : `
-        <button class="btn-toggle-ready" id="btn-player-toggle-ready">
-          ${renderLucideIcon(CheckCircle2, { width: 16, height: 16 })}
-          <span>Toggle Ready</span>
-        </button>
-      `;
+      : "";
 
     document.getElementById("btn-host-start-room")?.addEventListener("click", () => {
       startRoomMatch(user);
-    });
-    document.getElementById("btn-player-toggle-ready")?.addEventListener("click", () => {
-      if (activeRoom) {
-        activeRoom.send("toggle_ready");
-      }
     });
   }
 }
@@ -951,54 +961,48 @@ function renderRoomLobbyView(user: UserProfile) {
             </div>
           </section>
 
-          <!-- Right: Game Rules & Live Lobby Chat -->
-          <aside class="lobby-sidebar-area">
-            <div class="lobby-rules-card">
-              <div class="sidebar-card-title">
-                ${renderLucideIcon(Sparkles, { width: 15, height: 15, style: "color: var(--play-green);" })}
-                Arena Game Rules
-              </div>
-              <div class="rules-list">
-                <div class="rule-item">
-                  <span class="rule-bullet">•</span>
-                  <span>Every player secretly selects an integer from 0 to 100.</span>
-                </div>
-                <div class="rule-item">
-                  <span class="rule-bullet">•</span>
-                  <span>The system computes the average and multiplies by 0.7.</span>
-                </div>
-                <div class="rule-item">
-                  <span class="rule-bullet">•</span>
-                  <span>The player closest to the 0.7× target score wins the round!</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Live Chat Box (Light Mode) -->
-            <div class="lobby-chat-card">
-              <div class="chat-header">
-                <span>Lobby Chat</span>
-                <span style="font-size: 11px; color: var(--play-green); font-weight: 600;">Live Synced</span>
-              </div>
-
-              <div class="chat-messages-container" id="chat-messages-wrap">
-                ${chatMessagesHtml || '<div style="color: #64748b; font-size: 12.5px; text-align: center; margin-top: 24px;">No messages yet. Say hi to the lobby!</div>'}
-              </div>
-
-              <form class="chat-input-bar" id="chat-form">
-                <input 
-                  type="text" 
-                  id="input-chat" 
-                  class="input-chat-text" 
-                  placeholder="Type message..." 
-                  maxlength="150" 
-                  autocomplete="off"
-                />
-                <button type="submit" class="btn-send-chat">Send</button>
-              </form>
-            </div>
-          </aside>
         </main>
+
+        <!-- Floating Chat Icon (Bottom Right) -->
+        <button id="btn-floating-chat" class="floating-chat-btn ${isLobbyChatOpen ? 'is-hidden' : ''}" title="Open Lobby Chat" aria-label="Open Lobby Chat">
+          ${renderLucideIcon(MessageSquare, { width: 22, height: 22 })}
+          <span class="chat-unread-badge" id="chat-unread-badge" style="display: ${unreadChatCount > 0 && !isLobbyChatOpen ? 'flex' : 'none'};">
+            ${unreadChatCount > 9 ? '9+' : unreadChatCount}
+          </span>
+        </button>
+
+        <!-- Right Side Chat Drawer -->
+        <aside class="lobby-chat-drawer ${isLobbyChatOpen ? 'is-open' : ''}" id="lobby-chat-drawer" aria-label="Lobby Chat">
+          <div class="chat-header">
+            <div class="chat-header-title-group">
+              ${renderLucideIcon(MessageSquare, { width: 16, height: 16, style: "color: #38bdf8;" })}
+              <span>Lobby Chat</span>
+              <span class="chat-live-badge">
+                <span class="chat-live-dot"></span>
+                Live Synced
+              </span>
+            </div>
+            <button class="btn-chat-close" id="btn-close-chat" title="Close Chat" aria-label="Close Chat">
+              ${renderLucideIcon(X, { width: 16, height: 16 })}
+            </button>
+          </div>
+
+          <div class="chat-messages-container" id="chat-messages-wrap">
+            ${chatMessagesHtml || '<div class="chat-empty-hint">No messages yet. Say hi to the lobby!</div>'}
+          </div>
+
+          <form class="chat-input-bar" id="chat-form">
+            <input 
+              type="text" 
+              id="input-chat" 
+              class="input-chat-text" 
+              placeholder="Type message..." 
+              maxlength="150" 
+              autocomplete="off"
+            />
+            <button type="submit" class="btn-send-chat">Send</button>
+          </form>
+        </aside>
 
         <!-- Sticky Bottom Control Bar (Light Mode) -->
         <footer class="lobby-bottom-action-bar">
@@ -1019,12 +1023,7 @@ function renderRoomLobbyView(user: UserProfile) {
                     <span>Start Room</span>
                   </button>
                 `
-                : `
-                  <button class="btn-toggle-ready" id="btn-player-toggle-ready">
-                    ${renderLucideIcon(CheckCircle2, { width: 16, height: 16 })}
-                    <span>Toggle Ready</span>
-                  </button>
-                `
+                : ""
             }
           </div>
         </footer>
@@ -1049,9 +1048,32 @@ function renderRoomLobbyView(user: UserProfile) {
   const chatWrap = document.getElementById("chat-messages-wrap");
   if (chatWrap) chatWrap.scrollTop = chatWrap.scrollHeight;
 
-  // Leave room event
+  // Leave room event with SweetAlert confirmation
   document.getElementById("btn-leave-room")?.addEventListener("click", () => {
-    leaveCurrentRoom(user);
+    Swal.fire({
+      title: "Leave Room?",
+      text: isHost
+        ? "Are you sure you want to leave? As the host, leaving will close the lobby for other players."
+        : "Are you sure you want to leave this room and return to the arena lobby?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Leave",
+      cancelButtonText: "Stay in Room",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#334155",
+      reverseButtons: true,
+      focusCancel: true,
+      customClass: {
+        popup: "alice-swal-popup",
+        title: "alice-swal-title",
+        confirmButton: "alice-swal-confirm",
+        cancelButton: "alice-swal-cancel",
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        leaveCurrentRoom(user);
+      }
+    });
   });
 
   // Copy code event
@@ -1071,13 +1093,6 @@ function renderRoomLobbyView(user: UserProfile) {
     startRoomMatch(user);
   });
 
-  // Player Toggle Ready event
-  document.getElementById("btn-player-toggle-ready")?.addEventListener("click", () => {
-    if (activeRoom) {
-      activeRoom.send("toggle_ready");
-    }
-  });
-
   // Chat message submit
   document.getElementById("chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1087,6 +1102,15 @@ function renderRoomLobbyView(user: UserProfile) {
       activeRoom.send("chat", { text });
       chatInput.value = "";
     }
+  });
+
+  // Floating chat toggle & close events
+  document.getElementById("btn-floating-chat")?.addEventListener("click", () => {
+    openLobbyChat();
+  });
+
+  document.getElementById("btn-close-chat")?.addEventListener("click", () => {
+    closeLobbyChat();
   });
 }
 
@@ -1482,7 +1506,7 @@ function initializeTarajuGame(user: UserProfile) {
   };
 
   isGameStarted = true;
-  currentChosenBalance = 50;
+  currentChosenBalance = null;
 
   if (activeRoom) {
     saveNavigationState("room", activeRoom.roomId);
@@ -1568,6 +1592,7 @@ function handlePlayerSubmitChoice(user: UserProfile) {
   );
 
   if (!localPlayer || localPlayer.isEliminated || localPlayer.isSubmitted) return;
+  if (currentChosenBalance === null || currentChosenBalance === undefined) return;
 
   localPlayer.currentGuess = currentChosenBalance;
   localPlayer.isSubmitted = true;
@@ -1748,6 +1773,7 @@ function advanceToNextRound(user: UserProfile) {
   tarajuGameState.phase = "playing";
   tarajuGameState.timerSeconds = 180; // Reset to 3 minutes
   tarajuGameState.lastResult = null;
+  currentChosenBalance = null;
 
   // Reset active players' guess state
   tarajuGameState.players.forEach((p) => {
@@ -1856,6 +1882,100 @@ function renderGameActiveView(user: UserProfile) {
   const survivors = tarajuGameState.players.filter((p) => p.points > 0);
   const ultimateWinner = survivors.length === 1 ? survivors[0] : null;
 
+  // Partition players into left and right wings
+  const players = tarajuGameState.players;
+  let leftPlayers: TarajuPlayer[] = [];
+  let rightPlayers: TarajuPlayer[] = [];
+
+  if (players.length <= 1) {
+    leftPlayers = players;
+  } else if (players.length === 2) {
+    leftPlayers = [players[0]];
+    rightPlayers = [players[1]];
+  } else {
+    const half = Math.ceil(players.length / 2);
+    leftPlayers = players.slice(0, half);
+    rightPlayers = players.slice(half);
+  }
+
+  const renderPlayerCol = (p: TarajuPlayer) => {
+    const isWinner = isResultsPhase && lastRes?.winnerSessionIds.includes(p.sessionId);
+    const isLocal = p.sessionId === localPlayer?.sessionId;
+    
+    // Guess display under avatar
+    let displayedNumber = "??";
+    if (isResultsPhase) {
+      displayedNumber = String(p.currentGuess ?? 50);
+    } else if (isLocal && p.currentGuess !== null) {
+      displayedNumber = String(p.currentGuess);
+    } else if (p.isSubmitted) {
+      displayedNumber = "✓";
+    }
+
+    return `
+      <div class="taraju-player-col ${isWinner ? "is-winner" : ""} ${p.isEliminated ? "is-eliminated" : ""}" id="player-col-${p.sessionId}">
+        <!-- Winner Crown & Golden Label -->
+        <div class="taraju-col-winner-label">
+          <span class="taraju-crown-icon">👑</span>
+          <span class="taraju-winner-text">WINNER</span>
+        </div>
+
+        <!-- Unified Card Frame -->
+        <div class="taraju-card-frame">
+          <!-- Avatar Box -->
+          <div class="taraju-avatar-box">
+            <!-- Submission indicator pill -->
+            ${
+              p.isSubmitted && !isResultsPhase
+                ? `<div class="taraju-status-pill ready">LOCKED ✓</div>`
+                : !p.isSubmitted && !isResultsPhase && !p.isEliminated
+                ? `<div class="taraju-status-pill">THINKING...</div>`
+                : ""
+            }
+
+            <!-- Eliminated badge -->
+            ${p.isEliminated ? `<div class="taraju-eliminated-badge">ELIMINATED</div>` : ""}
+
+            <!-- Avatar circle -->
+            <div class="taraju-avatar-circle-wrap">
+              ${
+                p.picture
+                  ? `<img src="${p.picture}" alt="${p.name}" class="taraju-avatar-img" referrerpolicy="no-referrer" />`
+                  : `<div class="taraju-avatar-initials">${(p.name || "U").charAt(0).toUpperCase()}</div>`
+              }
+            </div>
+
+            <div class="taraju-player-name" title="${escapeHtml(p.name)}">
+              ${p.isHost ? "👑 " : ""}${escapeHtml(p.name)}${isLocal ? " (YOU)" : ""}
+            </div>
+
+            <!-- Points Tag (10 PTS initially, shows -1 on loss) -->
+            <div class="taraju-player-points-tag ${
+              isResultsPhase && isWinner
+                ? "points-safe"
+                : isResultsPhase && p.pointsLostLastRound > 0
+                ? "points-lost"
+                : ""
+            }">
+              ${p.points} PTS ${
+                isResultsPhase && p.pointsLostLastRound > 0
+                  ? "(-1)"
+                  : isResultsPhase && isWinner
+                  ? "(SAFE)"
+                  : ""
+              }
+            </div>
+          </div>
+
+          <!-- Glowing Number Box -->
+          <div class="taraju-number-box ${!isResultsPhase && !isLocal ? "is-secret" : ""}" id="num-box-${p.sessionId}">
+            ${displayedNumber}
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
   app.innerHTML = `
     <div class="taraju-arena-screen">
       <!-- High-Tech Arena Header Bar -->
@@ -1893,247 +2013,131 @@ function renderGameActiveView(user: UserProfile) {
         </div>
       </header>
 
-      <!-- Main Stage: Exact Replica of taraju-banner.png -->
+      <!-- Main Stage: Left Players, Center Calculator, Right Players -->
       <main class="taraju-main-stage">
-        <!-- Subtitle & Rules Status Strip -->
-        <div class="taraju-stage-status-strip">
-          <div class="taraju-rule-hint">
-            👑 <strong>Rule:</strong> Choose 0-100. Target score is <strong>0.7 × average</strong>. Closest player wins, losers lose 1 point.
-          </div>
-          <div class="taraju-phase-pill ${
-            tarajuGameState.phase === "playing"
-              ? "phase-guess"
-              : tarajuGameState.phase === "results"
-              ? "phase-result"
-              : "phase-over"
-          }">
-            ${
-              tarajuGameState.phase === "playing"
-                ? "Choice Phase • 3 Min"
-                : tarajuGameState.phase === "results"
-                ? "Round Evaluated"
-                : "Arena Concluded"
-            }
-          </div>
+        <!-- Left Players Column -->
+        <div class="taraju-players-col taraju-players-left">
+          ${leftPlayers.map(renderPlayerCol).join("")}
         </div>
 
-        <!-- The Taraju Scale Grid: Player Cards & Revealed Numbers (taraju-banner.png) -->
-        <div class="taraju-scale-grid" id="taraju-scale-grid">
-          ${tarajuGameState.players
-            .map((p) => {
-              const isWinner = isResultsPhase && lastRes?.winnerSessionIds.includes(p.sessionId);
-              const isLocal = p.sessionId === localPlayer?.sessionId;
-              
-              // Guess display under avatar
-              let displayedNumber = "??";
-              if (isResultsPhase) {
-                displayedNumber = String(p.currentGuess ?? 50);
-              } else if (isLocal && p.currentGuess !== null) {
-                displayedNumber = String(p.currentGuess);
-              } else if (p.isSubmitted) {
-                displayedNumber = "✓";
-              }
+        <!-- Center Column: Calculator / Tablet & Results -->
+        <div class="taraju-center-col">
+          ${
+            isResultsPhase && lastRes
+              ? `
+            <div class="taraju-total-container">
+              <div class="taraju-total-row">
+                <div class="taraju-total-label">TOTAL</div>
+                <div class="taraju-total-pill">${lastRes.target.toFixed(2)}</div>
+              </div>
 
-              return `
-                <div class="taraju-player-col ${isWinner ? "is-winner" : ""} ${p.isEliminated ? "is-eliminated" : ""}" id="player-col-${p.sessionId}">
-                  <!-- Winner Crown & Golden Label (Top of column, matching banner) -->
-                  <div class="taraju-col-winner-label">
-                    <span class="taraju-crown-icon">👑</span>
-                    <span class="taraju-winner-text">WINNER</span>
-                  </div>
-
-                  <!-- Unified Card Frame (Frames Avatar + Number with glowing red/orange neon border when winning) -->
-                  <div class="taraju-card-frame">
-                    <!-- Avatar Box -->
-                    <div class="taraju-avatar-box">
-                      <!-- Submission indicator pill -->
-                      ${
-                        p.isSubmitted && !isResultsPhase
-                          ? `<div class="taraju-status-pill ready">LOCKED ✓</div>`
-                          : !p.isSubmitted && !isResultsPhase && !p.isEliminated
-                          ? `<div class="taraju-status-pill">THINKING...</div>`
-                          : ""
-                      }
-
-                      <!-- Eliminated badge -->
-                      ${p.isEliminated ? `<div class="taraju-eliminated-badge">ELIMINATED</div>` : ""}
-
-                      <!-- Avatar circle -->
-                      <div class="taraju-avatar-circle-wrap">
-                        ${
-                          p.picture
-                            ? `<img src="${p.picture}" alt="${p.name}" class="taraju-avatar-img" referrerpolicy="no-referrer" />`
-                            : `<div class="taraju-avatar-initials">${(p.name || "U").charAt(0).toUpperCase()}</div>`
-                        }
-                      </div>
-
-                      <div class="taraju-player-name" title="${escapeHtml(p.name)}">
-                        ${p.isHost ? "👑 " : ""}${escapeHtml(p.name)}${isLocal ? " (YOU)" : ""}
-                      </div>
-
-                      <!-- Points Tag (10 PTS initially, shows -1 on loss) -->
-                      <div class="taraju-player-points-tag ${
-                        isResultsPhase && isWinner
-                          ? "points-safe"
-                          : isResultsPhase && p.pointsLostLastRound > 0
-                          ? "points-lost"
-                          : ""
-                      }">
-                        ${p.points} PTS ${
-                          isResultsPhase && p.pointsLostLastRound > 0
-                            ? "(-1)"
-                            : isResultsPhase && isWinner
-                            ? "(SAFE)"
-                            : ""
-                        }
-                      </div>
-                    </div>
-
-                    <!-- Glowing Number Box (Directly below avatar, exact match to mint box in taraju-banner.png) -->
-                    <div class="taraju-number-box ${!isResultsPhase && !isLocal ? "is-secret" : ""}" id="num-box-${p.sessionId}">
-                      ${displayedNumber}
-                    </div>
-                  </div>
+              <div class="taraju-calculation-box">
+                <div class="taraju-calc-line">
+                  Average of all guesses: <strong>${lastRes.average.toFixed(2)}</strong> • Target: ${lastRes.average.toFixed(2)} × 0.7 = <strong>${lastRes.target.toFixed(2)}</strong>
                 </div>
-              `;
-            })
-            .join("")}
-        </div>
+                <div class="taraju-calc-winner-line">
+                  👑 Closest Guess: ${lastRes.guesses
+                    .filter((g) => lastRes.winnerSessionIds.includes(g.sessionId))
+                    .map((g) => `${escapeHtml(g.name)} (${g.guess})`)
+                    .join(", ")}
+                </div>
+                <div style="font-size: 12px; color: #94a3b8;">
+                  All losing contenders lose 1 point. Contenders reaching 0 points are eliminated.
+                </div>
+              </div>
 
-        <!-- TOTAL / Target Calculation Banner (Directly below cards row, matching taraju-banner.png) -->
-        ${
-          isResultsPhase && lastRes
-            ? `
-          <div class="taraju-total-container">
-            <div class="taraju-total-row">
-              <div class="taraju-total-label">TOTAL</div>
-              <div class="taraju-total-pill">${lastRes.target.toFixed(2)}</div>
+              <!-- Next round timer & action -->
+              ${
+                tarajuGameState.phase !== "victory"
+                  ? `
+                <div class="taraju-next-round-strip">
+                  <span class="taraju-next-countdown-badge" id="taraju-next-countdown-badge">
+                    Next round starts in ${tarajuGameState.nextRoundCountdown}s...
+                  </span>
+                  ${
+                    isHost
+                      ? `
+                    <button class="btn-taraju-skip-next" id="btn-taraju-skip-next">
+                      Start Next Round Now
+                    </button>
+                  `
+                      : ""
+                  }
+                </div>
+              `
+                  : ""
+              }
             </div>
+          `
+              : ""
+          }
 
-            <div class="taraju-calculation-box">
-              <div class="taraju-calc-line">
-                Average of all guesses: <strong>${lastRes.average.toFixed(2)}</strong> • Target: ${lastRes.average.toFixed(2)} × 0.7 = <strong>${lastRes.target.toFixed(2)}</strong>
-              </div>
-              <div class="taraju-calc-winner-line">
-                👑 Closest Guess: ${lastRes.guesses
-                  .filter((g) => lastRes.winnerSessionIds.includes(g.sessionId))
-                  .map((g) => `${escapeHtml(g.name)} (${g.guess})`)
-                  .join(", ")}
-              </div>
-              <div style="font-size: 12px; color: #94a3b8;">
-                All losing contenders lose 1 point. Contenders reaching 0 points are eliminated.
-              </div>
-            </div>
-
-            <!-- Next round timer & action -->
+          <!-- Wide Calculator-like Number Matrix -->
+          <div class="taraju-calc-container">
             ${
-              tarajuGameState.phase !== "victory"
+              localPlayer?.isEliminated
                 ? `
-              <div class="taraju-next-round-strip">
-                <span class="taraju-next-countdown-badge" id="taraju-next-countdown-badge">
-                  Next round starts in ${tarajuGameState.nextRoundCountdown}s...
-                </span>
-                ${
-                  isHost
-                    ? `
-                  <button class="btn-taraju-skip-next" id="btn-taraju-skip-next">
-                    Start Next Round Now
-                  </button>
-                `
-                    : ""
-                }
+              <div class="taraju-eliminated-notice">
+                <div class="taraju-eliminated-notice-title">💀 YOU HAVE BEEN ELIMINATED</div>
+                <p>You reached 0 points and can no longer submit guesses. You are spectating the remaining contenders until the victor emerges.</p>
               </div>
             `
-                : ""
+                : `
+              <div class="taraju-calc-matrix">
+                <!-- Top Row: LCD display spanning 9 cols + '0' button at 10th col -->
+                <div class="taraju-calc-lcd" id="taraju-calc-lcd">
+                  <div class="taraju-calc-lcd-screen">
+                    <span class="taraju-calc-lcd-number" id="taraju-calc-lcd-val">${currentChosenBalance !== null ? currentChosenBalance : ""}</span>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  class="taraju-calc-key taraju-calc-key-zero ${currentChosenBalance === 0 ? "is-selected" : ""}" 
+                  data-num="0" 
+                  ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}
+                >
+                  0
+                </button>
+
+                <!-- Numbers 1 to 100 in a 10x10 matrix -->
+                ${Array.from({ length: 100 }, (_, i) => i + 1)
+                  .map(
+                    (n) => `
+                  <button 
+                    type="button" 
+                    class="taraju-calc-key ${currentChosenBalance !== null && n === currentChosenBalance ? "is-selected" : ""}" 
+                    data-num="${n}" 
+                    ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}
+                  >
+                    ${n}
+                  </button>
+                `
+                  )
+                  .join("")}
+              </div>
+
+              <!-- Lock Choice Button -->
+              <button 
+                class="btn-taraju-lock-choice ${localPlayer?.isSubmitted ? "is-locked" : ""}" 
+                id="btn-taraju-lock" 
+                ${localPlayer?.isSubmitted || isResultsPhase || currentChosenBalance === null ? "disabled" : ""}
+              >
+                ${
+                  localPlayer?.isSubmitted
+                    ? `✅ Guess Locked: ${localPlayer.currentGuess} (Waiting for others...)`
+                    : currentChosenBalance !== null
+                    ? `Lock in Guess (${currentChosenBalance})`
+                    : `Select a Number (0 - 100)`
+                }
+              </button>
+            `
             }
           </div>
-        `
-            : `
-          <!-- Placeholder during choice phase so layout stays rock-solid -->
-          <div class="taraju-total-container" style="opacity: 0.5;">
-            <div class="taraju-total-row">
-              <div class="taraju-total-label">TOTAL</div>
-              <div class="taraju-total-pill" style="color: #64748b;">--.--</div>
-            </div>
-          </div>
-        `
-        }
+        </div>
 
-        <!-- Player Input Deck: Slider, Direct Input, Presets & Confirm Button -->
-        <div class="taraju-player-controls">
-          ${
-            localPlayer?.isEliminated
-              ? `
-            <div class="taraju-eliminated-notice">
-              <div class="taraju-eliminated-notice-title">💀 YOU HAVE BEEN ELIMINATED</div>
-              <p>You reached 0 points and can no longer submit guesses. You are spectating the remaining contenders until the victor emerges.</p>
-            </div>
-          `
-              : `
-            <div class="taraju-control-title">
-              Choose your balance number (0 - 100)
-            </div>
-
-            <div class="taraju-control-display-row">
-              <button class="btn-taraju-step" id="btn-step-minus-10" ${localPlayer?.isSubmitted ? "disabled" : ""}>-10</button>
-              <button class="btn-taraju-step" id="btn-step-minus-1" ${localPlayer?.isSubmitted ? "disabled" : ""}>-1</button>
-              
-              <input 
-                type="number" 
-                id="input-taraju-number" 
-                class="taraju-number-input" 
-                min="0" 
-                max="100" 
-                value="${currentChosenBalance}" 
-                ${localPlayer?.isSubmitted ? "disabled" : ""}
-              />
-
-              <button class="btn-taraju-step" id="btn-step-plus-1" ${localPlayer?.isSubmitted ? "disabled" : ""}>+1</button>
-              <button class="btn-taraju-step" id="btn-step-plus-10" ${localPlayer?.isSubmitted ? "disabled" : ""}>+10</button>
-            </div>
-
-            <div class="taraju-slider-row">
-              <input 
-                type="range" 
-                id="slider-taraju-balance" 
-                class="taraju-slider" 
-                min="0" 
-                max="100" 
-                value="${currentChosenBalance}" 
-                ${localPlayer?.isSubmitted ? "disabled" : ""}
-              />
-              <div class="taraju-slider-labels">
-                <span>0</span>
-                <span>25</span>
-                <span>50</span>
-                <span>75</span>
-                <span>100</span>
-              </div>
-            </div>
-
-            <!-- Quick Presets -->
-            <div class="taraju-presets-row">
-              ${[0, 15, 25, 35, 50, 70, 85, 100]
-                .map(
-                  (val) => `
-                <button class="btn-taraju-preset" data-val="${val}" ${localPlayer?.isSubmitted ? "disabled" : ""}>
-                  ${val}
-                </button>
-              `
-                )
-                .join("")}
-            </div>
-
-            <!-- Lock Choice Button -->
-            <button class="btn-taraju-lock-choice ${localPlayer?.isSubmitted ? "is-locked" : ""}" id="btn-taraju-lock" ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}>
-              ${
-                localPlayer?.isSubmitted
-                  ? `✅ Guess Locked: ${localPlayer.currentGuess} (Waiting for others...)`
-                  : `Lock in Guess (${currentChosenBalance})`
-              }
-            </button>
-          `
-          }
+        <!-- Right Players Column -->
+        <div class="taraju-players-col taraju-players-right">
+          ${rightPlayers.map(renderPlayerCol).join("")}
         </div>
       </main>
 
@@ -2172,36 +2176,38 @@ function renderGameActiveView(user: UserProfile) {
 }
 
 function attachGameActiveEvents(user: UserProfile) {
-  const slider = document.getElementById("slider-taraju-balance") as HTMLInputElement;
-  const numInput = document.getElementById("input-taraju-number") as HTMLInputElement;
-  const lockBtn = document.getElementById("btn-taraju-lock");
+  const lockBtn = document.getElementById("btn-taraju-lock") as HTMLButtonElement | null;
+  const lcdVal = document.getElementById("taraju-calc-lcd-val");
 
   const syncNumber = (val: number) => {
     currentChosenBalance = Math.max(0, Math.min(100, Math.round(val)));
-    if (slider) slider.value = String(currentChosenBalance);
-    if (numInput) numInput.value = String(currentChosenBalance);
+    if (lcdVal) lcdVal.innerText = String(currentChosenBalance);
+
+    // Highlight active key in grid
+    document.querySelectorAll(".taraju-calc-key").forEach((keyEl) => {
+      const n = Number(keyEl.getAttribute("data-num"));
+      if (n === currentChosenBalance) {
+        keyEl.classList.add("is-selected");
+      } else {
+        keyEl.classList.remove("is-selected");
+      }
+    });
+
     if (lockBtn && !lockBtn.classList.contains("is-locked")) {
+      lockBtn.removeAttribute("disabled");
+      lockBtn.disabled = false;
       lockBtn.innerText = `Lock in Guess (${currentChosenBalance})`;
     }
   };
 
-  slider?.addEventListener("input", () => {
-    syncNumber(Number(slider.value));
-  });
-
-  numInput?.addEventListener("input", () => {
-    syncNumber(Number(numInput.value));
-  });
-
-  document.getElementById("btn-step-minus-10")?.addEventListener("click", () => syncNumber(currentChosenBalance - 10));
-  document.getElementById("btn-step-minus-1")?.addEventListener("click", () => syncNumber(currentChosenBalance - 1));
-  document.getElementById("btn-step-plus-1")?.addEventListener("click", () => syncNumber(currentChosenBalance + 1));
-  document.getElementById("btn-step-plus-10")?.addEventListener("click", () => syncNumber(currentChosenBalance + 10));
-
-  document.querySelectorAll(".btn-taraju-preset").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const v = Number(btn.getAttribute("data-val"));
-      if (!isNaN(v)) syncNumber(v);
+  // Attach click listener to each calculator key
+  document.querySelectorAll(".taraju-calc-key").forEach((keyEl) => {
+    keyEl.addEventListener("click", () => {
+      const n = Number(keyEl.getAttribute("data-num"));
+      if (!isNaN(n)) {
+        syncNumber(n);
+        playTarajuSound("tick");
+      }
     });
   });
 
@@ -2266,7 +2272,18 @@ async function createRoomAndEnter(user: UserProfile, roomName: string, maxPlayer
     setupRoomListeners(room, user, true);
   } catch (err: any) {
     console.error("Failed to create room:", err);
-    alert(`Could not create room: ${err.message || err}`);
+    Swal.fire({
+      icon: "error",
+      title: "Creation Failed",
+      text: `Could not create room: ${err.message || err}`,
+      confirmButtonText: "OK",
+      confirmButtonColor: "#dc2626",
+      customClass: {
+        popup: "alice-swal-popup",
+        title: "alice-swal-title",
+        confirmButton: "alice-swal-confirm",
+      },
+    });
   }
 }
 
@@ -2306,21 +2323,54 @@ async function joinRoomById(user: UserProfile, roomId: string) {
 
 async function joinRoomByCode(user: UserProfile, code: string) {
   try {
-    const formattedCode = code.trim().toUpperCase();
+    const formattedCode = code.trim().replace(/^#/, "").toUpperCase();
     const res = await fetch(`${serverUrl}/api/rooms/${formattedCode}`);
     if (!res.ok) {
-      alert(`No active room found with code #${formattedCode}`);
+      Swal.fire({
+        icon: "error",
+        title: "Room Not Found",
+        text: `No active room found with code #${formattedCode}`,
+        confirmButtonText: "OK",
+        confirmButtonColor: "#38bdf8",
+        customClass: {
+          popup: "alice-swal-popup",
+          title: "alice-swal-title",
+          confirmButton: "alice-swal-primary",
+        },
+      });
       return;
     }
     const data = await res.json();
     if (data?.success && data?.room?.roomId) {
       await joinRoomById(user, data.room.roomId);
     } else {
-      alert(`No active room found with code #${formattedCode}`);
+      Swal.fire({
+        icon: "error",
+        title: "Room Not Found",
+        text: `No active room found with code #${formattedCode}`,
+        confirmButtonText: "OK",
+        confirmButtonColor: "#38bdf8",
+        customClass: {
+          popup: "alice-swal-popup",
+          title: "alice-swal-title",
+          confirmButton: "alice-swal-primary",
+        },
+      });
     }
   } catch (err) {
     console.error("Error looking up room code:", err);
-    alert("Error searching for room code. Please try again.");
+    Swal.fire({
+      icon: "error",
+      title: "Lookup Failed",
+      text: "Error searching for room code. Please try again.",
+      confirmButtonText: "OK",
+      confirmButtonColor: "#38bdf8",
+      customClass: {
+        popup: "alice-swal-popup",
+        title: "alice-swal-title",
+        confirmButton: "alice-swal-primary",
+      },
+    });
   }
 }
 
@@ -2329,6 +2379,8 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
   stopRoomsAutoPolling();
   isGameStarted = false;
   roomChatHistory = [];
+  isLobbyChatOpen = false;
+  unreadChatCount = 0;
 
   // Local player entry
   if (roomPlayers.length === 0) {
@@ -2570,6 +2622,11 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
       chatWrap.appendChild(bubble);
       chatWrap.scrollTop = chatWrap.scrollHeight;
     }
+
+    if (!isLobbyChatOpen) {
+      unreadChatCount++;
+      updateFloatingChatBadge();
+    }
   });
 
   room.onStateChange(() => {
@@ -2584,6 +2641,8 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
     removeCountdownOverlay();
     activeRoom = null;
     isGameStarted = false;
+    isLobbyChatOpen = false;
+    unreadChatCount = 0;
     roomPlayers = [];
     saveNavigationState("arena");
     renderRoomBrowserView(user);
@@ -2631,6 +2690,8 @@ function leaveCurrentRoom(user: UserProfile) {
     activeRoom = null;
   }
   isGameStarted = false;
+  isLobbyChatOpen = false;
+  unreadChatCount = 0;
   roomPlayers = [];
   currentRoomSummary = null;
   saveNavigationState("arena");
@@ -2712,54 +2773,9 @@ function renderPlayStoreView(user: UserProfile) {
         </div>
       </header>
 
-      <!-- Subheader Device Chips -->
-      <div class="device-chips-bar">
-        <div class="device-chip active">
-          ${renderLucideIcon(Monitor, { width: 14, height: 14 })}
-          <span>Windows PC</span>
-        </div>
-      </div>
-
       <!-- Main Store Content -->
       <main class="store-main-content">
-        <!-- Hero Banner Carousel (Taraju Sliding Item) -->
-        <div class="playstore-carousel-wrapper">
-          <button class="carousel-nav-btn prev" id="carousel-prev" title="Previous item">
-            ${renderLucideIcon(ChevronLeft, { width: 22, height: 22 })}
-          </button>
-          <button class="carousel-nav-btn next" id="carousel-next" title="Next item">
-            ${renderLucideIcon(ChevronRight, { width: 22, height: 22 })}
-          </button>
-
-          <div class="carousel-track">
-            <div class="featured-banner-card" id="taraju-hero-card">
-              <div class="banner-visual-area">
-                <img src="/taraju-banner.png" alt="Taraju Winner Arena Banner" class="banner-img" />
-                <div class="banner-image-gradient"></div>
-                
-                <div class="banner-overlay-content">
-                  <h2 class="banner-headline">Launch into the King of Diamonds with Taraju</h2>
-                  <p class="banner-subtext">Pick your balance between 0 and 100 • Target 0.7× average in the psychological duel</p>
-                </div>
-              </div>
-
-              <div class="banner-app-strip">
-                <div class="app-meta-left">
-                  <img src="/taraju-icon.jpg" alt="Taraju 100 App Icon" class="banner-app-icon" />
-                  <div class="app-text-info">
-                    <span class="app-name-title">Taraju Arena</span>
-                    <span style="font-size: 12px; color: var(--play-green); font-weight: 600;">Matchmaking Online • Colyseus</span>
-                  </div>
-                </div>
-                <button class="btn-playstore-action" id="btn-banner-enter">
-                  Enter Matchmaking
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Section: Recommended for you (Apps Row below banner) -->
+        <!-- Section: Apps (Taraju) -->
         <section class="store-section">
           <div class="apps-grid-row">
             <!-- Taraju App Item -->
@@ -2792,11 +2808,6 @@ function renderPlayStoreView(user: UserProfile) {
     renderArenaView(user);
   };
 
-  document.getElementById("taraju-hero-card")?.addEventListener("click", navigateToArena);
-  document.getElementById("btn-banner-enter")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    navigateToArena();
-  });
   document.getElementById("app-card-taraju")?.addEventListener("click", navigateToArena);
   document.getElementById("btn-card-play")?.addEventListener("click", (e) => {
     e.stopPropagation();

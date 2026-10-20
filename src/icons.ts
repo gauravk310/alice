@@ -43,6 +43,9 @@ import {
   Swords,
   SlidersHorizontal,
   Hash,
+  Lock,
+  Unlock,
+  Eye,
   type IconNode,
 } from "lucide";
 
@@ -90,6 +93,9 @@ export {
   Swords,
   SlidersHorizontal,
   Hash,
+  Lock,
+  Unlock,
+  Eye,
 };
 
 /**
