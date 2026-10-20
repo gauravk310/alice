@@ -1171,6 +1171,14 @@ let tarajuRoundTimerInterval: any = null;
 let tarajuCountdownInterval: any = null;
 let tarajuNextRoundInterval: any = null;
 let isCountdownActive = false;
+let roundIntroTimeout: any = null;
+let resultsStepTimeouts: any[] = [];
+let currentResultsStep = 1; // 1: users & selections, 2: calculation, 3: winner decision, 4: next round text
+
+function clearResultsTimeouts() {
+  resultsStepTimeouts.forEach((t) => clearTimeout(t));
+  resultsStepTimeouts = [];
+}
 
 // Cross-tab synchronization channel
 const tarajuSyncChannel =
@@ -1220,7 +1228,9 @@ function getTarajuAudioContext(): AudioContext | null {
   }
 }
 
-function playTarajuSound(type: "tick" | "final_tick" | "start" | "win" | "lose" | "fanfare") {
+function playTarajuSound(
+  type: "tick" | "final_tick" | "start" | "win" | "lose" | "fanfare" | "card_reveal" | "calculate"
+) {
   const ctx = getTarajuAudioContext();
   if (!ctx) return;
   try {
@@ -1247,6 +1257,31 @@ function playTarajuSound(type: "tick" | "final_tick" | "start" | "win" | "lose" 
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
       osc.start(now);
       osc.stop(now + 0.25);
+    } else if (type === "card_reveal") {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(1174.66, now + 0.16); // D6
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.start(now);
+      osc.stop(now + 0.22);
+    } else if (type === "calculate") {
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+        gain.gain.setValueAtTime(0.14, now + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.12);
+        osc.start(now + idx * 0.05);
+        osc.stop(now + idx * 0.05 + 0.12);
+      });
     } else if (type === "start") {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -1314,7 +1349,59 @@ function stopTarajuGameTimers() {
     clearInterval(tarajuNextRoundInterval);
     tarajuNextRoundInterval = null;
   }
+  if (roundIntroTimeout) {
+    clearTimeout(roundIntroTimeout);
+    roundIntroTimeout = null;
+  }
+  clearResultsTimeouts();
   isCountdownActive = false;
+  removeRoundIntroOverlay();
+}
+
+function removeRoundIntroOverlay() {
+  const overlay = document.getElementById("taraju-round-intro-overlay");
+  if (overlay) {
+    overlay.remove();
+  }
+}
+
+function showRoundIntro(roundNumber: number, _user: UserProfile, onComplete: () => void) {
+  removeRoundIntroOverlay();
+  if (roundIntroTimeout) {
+    clearTimeout(roundIntroTimeout);
+    roundIntroTimeout = null;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.id = "taraju-round-intro-overlay";
+  overlay.className = "taraju-round-intro-overlay";
+  overlay.innerHTML = `
+    <div class="taraju-round-intro-box">
+      <div class="taraju-round-intro-badge">
+        <span class="intro-diamond">♦</span> KING OF DIAMONDS <span class="intro-diamond">♦</span>
+      </div>
+      <h1 class="taraju-round-intro-title">ROUND ${roundNumber}</h1>
+      <div class="taraju-round-intro-jp">美人投票 • 天秤のゲーム</div>
+      <p class="taraju-round-intro-desc">
+        Select a number from 0 to 100. Target is group average × 0.7. Closest guess survives.
+      </p>
+      <div class="taraju-round-intro-timer-bar">
+        <div class="taraju-round-intro-progress"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  playTarajuSound("start");
+
+  roundIntroTimeout = setTimeout(() => {
+    overlay.classList.add("fade-out");
+    setTimeout(() => {
+      removeRoundIntroOverlay();
+      roundIntroTimeout = null;
+      onComplete();
+    }, 280);
+  }, 3000);
 }
 
 // ------------------------------------------
@@ -1502,7 +1589,7 @@ function initializeTarajuGame(user: UserProfile) {
     timerSeconds: 180, // 3 minutes = 180 seconds
     players: initialPlayers,
     lastResult: null,
-    nextRoundCountdown: 8,
+    nextRoundCountdown: 5,
   };
 
   isGameStarted = true;
@@ -1512,10 +1599,16 @@ function initializeTarajuGame(user: UserProfile) {
     saveNavigationState("room", activeRoom.roomId);
   }
 
-  playTarajuSound("start");
+  // Pre-render base view so layout is ready underneath
   renderGameActiveView(user);
-  startRoundTimer(user);
-  scheduleAiGuesses(user);
+
+  // Show "ROUND 1" announcement in center for 3 seconds, then reveal game UI and start timer
+  showRoundIntro(1, user, () => {
+    tarajuGameState.phase = "playing";
+    renderGameActiveView(user);
+    startRoundTimer(user);
+    scheduleAiGuesses(user);
+  });
 }
 
 // Schedule AI guesses if playing solo with AI
@@ -1712,38 +1805,79 @@ function evaluateRound(user: UserProfile) {
     players: tarajuGameState.players,
   });
 
-  // Play sound
-  const localPlayer = tarajuGameState.players.find(
-    (p) =>
-      p.sessionId === (activeRoom?.sessionId || "") ||
-      p.userId === user.id ||
-      (!p.isAi && !activeRoom)
-  );
+  // Start step-by-step results reveal: 1) users & values -> 2) calc -> 3) winner decision -> 4) next round text
+  startStepByStepResults(roundResult, user);
+}
 
-  if (localPlayer && winnerSessionIds.includes(localPlayer.sessionId)) {
-    playTarajuSound("win");
-  } else {
-    playTarajuSound("lose");
-  }
+function startStepByStepResults(roundResult: TarajuRoundResult, user: UserProfile) {
+  stopTarajuGameTimers();
+  tarajuGameState.lastResult = roundResult;
+  tarajuGameState.phase = "results";
+  tarajuGameState.nextRoundCountdown = 5;
+  currentChosenBalance = null;
 
+  // Step 1: Immediately reveal all players and their chosen numbers in boxes (Image 2 & 3)
+  currentResultsStep = 1;
+  playTarajuSound("card_reveal");
   renderGameActiveView(user);
 
-  // 5. Check if only 1 player remains
-  const survivingPlayers = tarajuGameState.players.filter((p) => p.points > 0);
+  // Step 2: After 3 seconds, show Calculation Section (Average formula + Multiplication by 0.7)
+  resultsStepTimeouts.push(
+    setTimeout(() => {
+      if (tarajuGameState.phase !== "results") return;
+      currentResultsStep = 2;
+      playTarajuSound("calculate");
+      renderGameActiveView(user);
+    }, 3000)
+  );
 
-  if (survivingPlayers.length <= 1) {
-    tarajuGameState.phase = "victory";
-    playTarajuSound("fanfare");
-    renderGameActiveView(user);
-  } else {
-    // Start 8-second countdown to next round
-    startNextRoundCountdown(user);
-  }
+  // Step 3: After 6 seconds, show Winner Decision banner and point outcomes (-1P, safe, eliminated)
+  resultsStepTimeouts.push(
+    setTimeout(() => {
+      if (tarajuGameState.phase !== "results") return;
+      currentResultsStep = 3;
+
+      const localPlayer = tarajuGameState.players.find(
+        (p) =>
+          p.sessionId === (activeRoom?.sessionId || "") ||
+          p.userId === user.id ||
+          (!p.isAi && !activeRoom)
+      );
+      if (localPlayer && roundResult.winnerSessionIds.includes(localPlayer.sessionId)) {
+        playTarajuSound("win");
+      } else {
+        playTarajuSound("lose");
+      }
+      renderGameActiveView(user);
+    }, 6000)
+  );
+
+  // Step 4: After 9.5 seconds, show Next Round countdown or Victory
+  resultsStepTimeouts.push(
+    setTimeout(() => {
+      if (tarajuGameState.phase !== "results") return;
+      currentResultsStep = 4;
+      renderGameActiveView(user);
+
+      const survivors = tarajuGameState.players.filter((p) => p.points > 0);
+      if (survivors.length <= 1) {
+        resultsStepTimeouts.push(
+          setTimeout(() => {
+            tarajuGameState.phase = "victory";
+            playTarajuSound("fanfare");
+            renderGameActiveView(user);
+          }, 3500)
+        );
+      } else {
+        startNextRoundCountdown(user);
+      }
+    }, 9500)
+  );
 }
 
 function startNextRoundCountdown(user: UserProfile) {
   if (tarajuNextRoundInterval) clearInterval(tarajuNextRoundInterval);
-  tarajuGameState.nextRoundCountdown = 8;
+  tarajuGameState.nextRoundCountdown = 5;
 
   tarajuNextRoundInterval = setInterval(() => {
     tarajuGameState.nextRoundCountdown -= 1;
@@ -1789,10 +1923,15 @@ function advanceToNextRound(user: UserProfile) {
     players: tarajuGameState.players,
   });
 
-  playTarajuSound("start");
   renderGameActiveView(user);
-  startRoundTimer(user);
-  scheduleAiGuesses(user);
+
+  // Show "ROUND X" text in center for 3 sec, then reveal game UI and start timer
+  showRoundIntro(tarajuGameState.roundNumber, user, () => {
+    tarajuGameState.phase = "playing";
+    renderGameActiveView(user);
+    startRoundTimer(user);
+    scheduleAiGuesses(user);
+  });
 }
 
 function restartTarajuMatch(user: UserProfile) {
@@ -1820,35 +1959,29 @@ function handleTarajuSyncAction(action: any, user: UserProfile) {
     }
   } else if (action.type === "ROUND_EVALUATED") {
     if (action.result && action.players) {
-      tarajuGameState.lastResult = action.result;
       tarajuGameState.players = action.players;
-      tarajuGameState.phase = "results";
-      stopTarajuGameTimers();
-      renderGameActiveView(user);
-
-      const survivors = tarajuGameState.players.filter((p) => p.points > 0);
-      if (survivors.length <= 1) {
-        tarajuGameState.phase = "victory";
-        playTarajuSound("fanfare");
-        renderGameActiveView(user);
-      } else {
-        startNextRoundCountdown(user);
-      }
+      startStepByStepResults(action.result, user);
     }
   } else if (action.type === "NEXT_ROUND") {
     tarajuGameState.roundNumber = action.roundNumber || tarajuGameState.roundNumber + 1;
     tarajuGameState.phase = "playing";
     tarajuGameState.timerSeconds = 180;
     tarajuGameState.lastResult = null;
+    currentChosenBalance = null;
     if (action.players) tarajuGameState.players = action.players;
     tarajuGameState.players.forEach((p) => {
       p.currentGuess = null;
       p.isSubmitted = false;
       p.lastRoundWon = false;
+      p.pointsLostLastRound = 0;
     });
     stopTarajuGameTimers();
     renderGameActiveView(user);
-    startRoundTimer(user);
+    showRoundIntro(tarajuGameState.roundNumber, user, () => {
+      tarajuGameState.phase = "playing";
+      renderGameActiveView(user);
+      startRoundTimer(user);
+    });
   } else if (action.type === "RESTART_MATCH") {
     initializeTarajuGame(user);
   }
@@ -2013,44 +2146,183 @@ function renderGameActiveView(user: UserProfile) {
         </div>
       </header>
 
-      <!-- Main Stage: Left Players, Center Calculator, Right Players -->
-      <main class="taraju-main-stage">
-        <!-- Left Players Column -->
-        <div class="taraju-players-col taraju-players-left">
-          ${leftPlayers.map(renderPlayerCol).join("")}
-        </div>
+      <!-- Stage: Step-by-Step Results Page (Images 2 & 3) OR Playing Calculator (Image 1) -->
+      ${
+        isResultsPhase && lastRes
+          ? `
+        <main class="taraju-results-stage">
+          <!-- Background Blueprint Scales of Justice Watermark -->
+          <div class="taraju-scales-bg-watermark" aria-hidden="true">
+            <svg viewBox="0 0 900 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M450 40 L450 440 M360 440 L540 440 M400 410 L500 410" stroke="rgba(56, 189, 248, 0.18)" stroke-width="3" stroke-linecap="round"/>
+              <path d="M180 120 L720 120" stroke="rgba(56, 189, 248, 0.25)" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="450" cy="120" r="18" stroke="rgba(56, 189, 248, 0.35)" stroke-width="3" fill="none"/>
+              <circle cx="450" cy="70" r="10" stroke="rgba(56, 189, 248, 0.28)" stroke-width="2" fill="none"/>
+              <!-- Left Pan Chains & Plate -->
+              <path d="M210 120 L130 280 M210 120 L290 280" stroke="rgba(56, 189, 248, 0.2)" stroke-width="2"/>
+              <path d="M110 280 Q210 350 310 280 Z" stroke="rgba(56, 189, 248, 0.25)" stroke-width="3" fill="rgba(56, 189, 248, 0.04)"/>
+              <!-- Right Pan Chains & Plate -->
+              <path d="M690 120 L610 280 M690 120 L770 280" stroke="rgba(56, 189, 248, 0.2)" stroke-width="2"/>
+              <path d="M590 280 Q690 350 790 280 Z" stroke="rgba(56, 189, 248, 0.25)" stroke-width="3" fill="rgba(56, 189, 248, 0.04)"/>
+              <!-- Blueprint Grid Axis Line -->
+              <line x1="30" y1="230" x2="870" y2="230" stroke="rgba(56, 189, 248, 0.12)" stroke-width="1.5" stroke-dasharray="6 6"/>
+            </svg>
+          </div>
 
-        <!-- Center Column: Calculator / Tablet & Results -->
-        <div class="taraju-center-col">
-          ${
-            isResultsPhase && lastRes
-              ? `
-            <div class="taraju-total-container">
-              <div class="taraju-total-row">
-                <div class="taraju-total-label">TOTAL</div>
-                <div class="taraju-total-pill">${lastRes.target.toFixed(2)}</div>
+          <div class="taraju-results-container">
+            <!-- Header Banner (Image 2 style) -->
+            <div class="taraju-results-rule-header">
+              <span class="taraju-rule-japanese-tag">【ルール】</span>
+              <div class="taraju-rule-japanese-title">
+                全員が選んだ数字の <span class="highlight-cyan">平均値</span> に <span class="highlight-red">0.7</span> を掛ける
               </div>
+            </div>
 
-              <div class="taraju-calculation-box">
-                <div class="taraju-calc-line">
-                  Average of all guesses: <strong>${lastRes.average.toFixed(2)}</strong> • Target: ${lastRes.average.toFixed(2)} × 0.7 = <strong>${lastRes.target.toFixed(2)}</strong>
+            <!-- STEP 1: Row of User Selected Numbers in Cream/White Boxes (Image 2 & 3) -->
+            <div class="taraju-results-users-row">
+              ${tarajuGameState.players.map((p) => {
+                const guessItem = lastRes.guesses.find((g) => g.sessionId === p.sessionId);
+                const guessVal = guessItem ? guessItem.guess : (p.currentGuess ?? 50);
+                const isWinner = lastRes.winnerSessionIds.includes(p.sessionId);
+                const diffVal = guessItem ? guessItem.diff : 0;
+                const isLocal = p.sessionId === localPlayer?.sessionId;
+
+                return `
+                  <div class="taraju-results-player-card ${currentResultsStep >= 3 && isWinner ? "is-winner-card" : ""} ${p.isEliminated ? "is-eliminated" : ""}">
+                    <!-- Avatar & User Info -->
+                    <div class="taraju-results-user-head">
+                      <div class="taraju-results-avatar-wrap">
+                        ${
+                          p.picture
+                            ? `<img src="${p.picture}" alt="${p.name}" class="taraju-results-avatar-img" referrerpolicy="no-referrer" />`
+                            : `<div class="taraju-results-avatar-initials">${(p.name || "U").charAt(0).toUpperCase()}</div>`
+                        }
+                      </div>
+                      <div class="taraju-results-player-name" title="${escapeHtml(p.name)}">
+                        ${p.isHost ? "👑 " : ""}${escapeHtml(p.name)}${isLocal ? " (YOU)" : ""}
+                      </div>
+                    </div>
+
+                    <!-- Distinct Number Box (Exact replica of Image 2 & 3: [ 46 ] [ 83 ] [ 37 ]) -->
+                    <div class="taraju-results-number-box">
+                      <span class="taraju-results-digit">${guessVal}</span>
+                    </div>
+
+                    <!-- STEP 3 Outcomes: Winner Burst or -1P Penalty (Manga Image 3) -->
+                    ${
+                      currentResultsStep >= 3
+                        ? `
+                      <div class="taraju-results-outcome-box">
+                        ${
+                          isWinner
+                            ? `
+                          <div class="taraju-manga-burst-winner" title="Closest Guess Winner">
+                            <span class="manga-burst-text">WINNER</span>
+                          </div>
+                          <div class="taraju-outcome-pill safe">±0P (SAFE)</div>
+                          <div class="taraju-outcome-pts">${p.points} PTS</div>
+                        `
+                            : `
+                          <div class="taraju-outcome-pill lost">-1P</div>
+                          <div class="taraju-outcome-diff">diff: ${diffVal.toFixed(2)}</div>
+                          <div class="taraju-outcome-pts">${p.points} PTS</div>
+                          ${p.isEliminated ? `<div class="taraju-outcome-elim">💀 ELIMINATED</div>` : ""}
+                        `
+                        }
+                      </div>
+                    `
+                        : `
+                      <div class="taraju-results-outcome-placeholder">
+                        <span class="taraju-placeholder-pts">${p.points} PTS</span>
+                      </div>
+                    `
+                    }
+                  </div>
+                `;
+              }).join("")}
+            </div>
+
+            <!-- STEP 2: Calculation Part (Fraction Average + Multiplication by 0.7, Image 2 & 3) -->
+            ${
+              currentResultsStep >= 2
+                ? `
+              <div class="taraju-calculation-stage">
+                <!-- Average Fraction Calculation -->
+                <div class="taraju-calc-avg-block">
+                  <div class="taraju-fraction-wrap">
+                    <div class="taraju-fraction-numerator">
+                      ${lastRes.guesses.map((g) => g.guess).join(" + ")}
+                    </div>
+                    <div class="taraju-fraction-denominator">
+                      ${lastRes.guesses.length}
+                    </div>
+                  </div>
+                  <div class="taraju-calc-equal-sign">=</div>
+                  <div class="taraju-calc-avg-result-box">
+                    <span class="calc-avg-number">${lastRes.average.toFixed(2)}</span>
+                    <span class="calc-avg-label">AVERAGE (平均値)</span>
+                  </div>
                 </div>
-                <div class="taraju-calc-winner-line">
-                  👑 Closest Guess: ${lastRes.guesses
+
+                <!-- Multiplication by 0.7 Formula (Exact replica of Image 2) -->
+                <div class="taraju-calc-multiplication-block">
+                  <div class="taraju-calc-formula-col">
+                    <div class="taraju-calc-big-box avg-val-box">${lastRes.average.toFixed(2)}</div>
+                    <div class="taraju-calc-column-sublabel">平均値 (Average)</div>
+                  </div>
+
+                  <div class="taraju-calc-operator">×</div>
+
+                  <div class="taraju-calc-formula-col">
+                    <div class="taraju-calc-big-box constant-val-box">0.7</div>
+                    <div class="taraju-calc-column-sublabel">定数 (Multiplier)</div>
+                  </div>
+
+                  <div class="taraju-calc-operator">=</div>
+
+                  <div class="taraju-calc-formula-col">
+                    <div class="taraju-calc-big-box target-val-box">${lastRes.target.toFixed(2)}</div>
+                    <div class="taraju-calc-column-sublabel">答え (Target)</div>
+                  </div>
+                </div>
+              </div>
+            `
+                : `
+              <div class="taraju-calculation-stage is-waiting">
+                <div class="taraju-waiting-pill">
+                  <span class="waiting-spin"></span> All user numbers locked in. Computing average × 0.7...
+                </div>
+              </div>
+            `
+            }
+
+            <!-- STEP 3: Winner Decision Announcement Banner -->
+            ${
+              currentResultsStep >= 3
+                ? `
+              <div class="taraju-decision-banner">
+                <div class="taraju-closest-oval-bubble">
+                  CLOSEST TO ${lastRes.target.toFixed(2)}
+                </div>
+                <div class="taraju-winner-lead-headline">
+                  👑 ${lastRes.guesses
                     .filter((g) => lastRes.winnerSessionIds.includes(g.sessionId))
                     .map((g) => `${escapeHtml(g.name)} (${g.guess})`)
-                    .join(", ")}
-                </div>
-                <div style="font-size: 12px; color: #94a3b8;">
-                  All losing contenders lose 1 point. Contenders reaching 0 points are eliminated.
+                    .join(" & ")} ${lastRes.winnerSessionIds.length > 1 ? "SURVIVE UNTOUCHED" : "SURVIVES UNTOUCHED"}!
                 </div>
               </div>
+            `
+                : ""
+            }
 
-              <!-- Next round timer & action -->
-              ${
-                tarajuGameState.phase !== "victory"
-                  ? `
-                <div class="taraju-next-round-strip">
+            <!-- STEP 4: Next Round Strip & Action Button -->
+            ${
+              currentResultsStep >= 4
+                ? `
+              <div class="taraju-next-round-strip">
+                ${
+                  tarajuGameState.phase !== "victory"
+                    ? `
                   <span class="taraju-next-countdown-badge" id="taraju-next-countdown-badge">
                     Next round starts in ${tarajuGameState.nextRoundCountdown}s...
                   </span>
@@ -2063,83 +2335,96 @@ function renderGameActiveView(user: UserProfile) {
                   `
                       : ""
                   }
-                </div>
-              `
-                  : ""
-              }
-            </div>
-          `
-              : ""
-          }
-
-          <!-- Wide Calculator-like Number Matrix -->
-          <div class="taraju-calc-container">
-            ${
-              localPlayer?.isEliminated
-                ? `
-              <div class="taraju-eliminated-notice">
-                <div class="taraju-eliminated-notice-title">💀 YOU HAVE BEEN ELIMINATED</div>
-                <p>You reached 0 points and can no longer submit guesses. You are spectating the remaining contenders until the victor emerges.</p>
-              </div>
-            `
-                : `
-              <div class="taraju-calc-matrix">
-                <!-- Top Row: LCD display spanning 9 cols + '0' button at 10th col -->
-                <div class="taraju-calc-lcd" id="taraju-calc-lcd">
-                  <div class="taraju-calc-lcd-screen">
-                    <span class="taraju-calc-lcd-number" id="taraju-calc-lcd-val">${currentChosenBalance !== null ? currentChosenBalance : ""}</span>
-                  </div>
-                </div>
-                <button 
-                  type="button" 
-                  class="taraju-calc-key taraju-calc-key-zero ${currentChosenBalance === 0 ? "is-selected" : ""}" 
-                  data-num="0" 
-                  ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}
-                >
-                  0
-                </button>
-
-                <!-- Numbers 1 to 100 in a 10x10 matrix -->
-                ${Array.from({ length: 100 }, (_, i) => i + 1)
-                  .map(
-                    (n) => `
-                  <button 
-                    type="button" 
-                    class="taraju-calc-key ${currentChosenBalance !== null && n === currentChosenBalance ? "is-selected" : ""}" 
-                    data-num="${n}" 
-                    ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}
-                  >
-                    ${n}
-                  </button>
                 `
-                  )
-                  .join("")}
-              </div>
-
-              <!-- Lock Choice Button -->
-              <button 
-                class="btn-taraju-lock-choice ${localPlayer?.isSubmitted ? "is-locked" : ""}" 
-                id="btn-taraju-lock" 
-                ${localPlayer?.isSubmitted || isResultsPhase || currentChosenBalance === null ? "disabled" : ""}
-              >
-                ${
-                  localPlayer?.isSubmitted
-                    ? `✅ Guess Locked: ${localPlayer.currentGuess} (Waiting for others...)`
-                    : currentChosenBalance !== null
-                    ? `Lock in Guess (${currentChosenBalance})`
-                    : `Select a Number (0 - 100)`
+                    : `<span class="taraju-next-countdown-badge">Arena battle concluded! Sole survivor stands.</span>`
                 }
-              </button>
+              </div>
             `
+                : ""
             }
           </div>
-        </div>
+        </main>
+      `
+          : `
+        <!-- Main Stage: Left Players, Center Calculator, Right Players -->
+        <main class="taraju-main-stage">
+          <!-- Left Players Column -->
+          <div class="taraju-players-col taraju-players-left">
+            ${leftPlayers.map(renderPlayerCol).join("")}
+          </div>
 
-        <!-- Right Players Column -->
-        <div class="taraju-players-col taraju-players-right">
-          ${rightPlayers.map(renderPlayerCol).join("")}
-        </div>
-      </main>
+          <!-- Center Column: Calculator / Tablet & Results -->
+          <div class="taraju-center-col">
+            <!-- Wide Calculator-like Number Matrix -->
+            <div class="taraju-calc-container">
+              ${
+                localPlayer?.isEliminated
+                  ? `
+                <div class="taraju-eliminated-notice">
+                  <div class="taraju-eliminated-notice-title">💀 YOU HAVE BEEN ELIMINATED</div>
+                  <p>You reached 0 points and can no longer submit guesses. You are spectating the remaining contenders until the victor emerges.</p>
+                </div>
+              `
+                  : `
+                <div class="taraju-calc-matrix">
+                  <!-- Top Row: LCD display spanning 9 cols + '0' button at 10th col -->
+                  <div class="taraju-calc-lcd" id="taraju-calc-lcd">
+                    <div class="taraju-calc-lcd-screen">
+                      <span class="taraju-calc-lcd-number" id="taraju-calc-lcd-val">${currentChosenBalance !== null ? currentChosenBalance : ""}</span>
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    class="taraju-calc-key taraju-calc-key-zero ${currentChosenBalance === 0 ? "is-selected" : ""}" 
+                    data-num="0" 
+                    ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}
+                  >
+                    0
+                  </button>
+
+                  <!-- Numbers 1 to 100 in a 10x10 matrix -->
+                  ${Array.from({ length: 100 }, (_, i) => i + 1)
+                    .map(
+                      (n) => `
+                    <button 
+                      type="button" 
+                      class="taraju-calc-key ${currentChosenBalance !== null && n === currentChosenBalance ? "is-selected" : ""}" 
+                      data-num="${n}" 
+                      ${localPlayer?.isSubmitted || isResultsPhase ? "disabled" : ""}
+                    >
+                      ${n}
+                    </button>
+                  `
+                    )
+                    .join("")}
+                </div>
+
+                <!-- Lock Choice Button -->
+                <button 
+                  class="btn-taraju-lock-choice ${localPlayer?.isSubmitted ? "is-locked" : ""}" 
+                  id="btn-taraju-lock" 
+                  ${localPlayer?.isSubmitted || isResultsPhase || currentChosenBalance === null ? "disabled" : ""}
+                >
+                  ${
+                    localPlayer?.isSubmitted
+                      ? `✅ Guess Locked: ${localPlayer.currentGuess} (Waiting for others...)`
+                      : currentChosenBalance !== null
+                      ? `Lock in Guess (${currentChosenBalance})`
+                      : `Select a Number (0 - 100)`
+                  }
+                </button>
+              `
+              }
+            </div>
+          </div>
+
+          <!-- Right Players Column -->
+          <div class="taraju-players-col taraju-players-right">
+            ${rightPlayers.map(renderPlayerCol).join("")}
+          </div>
+        </main>
+      `
+      }
 
       <!-- Ultimate Victory Modal (When only 1 survivor remains) -->
       ${
@@ -2511,9 +2796,12 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
       }));
     }
 
-    playTarajuSound("start");
     renderGameActiveView(user);
-    startRoundTimer(user);
+    showRoundIntro(tarajuGameState.roundNumber, user, () => {
+      tarajuGameState.phase = "playing";
+      renderGameActiveView(user);
+      startRoundTimer(user);
+    });
   });
 
   room.onMessage("round_timer_tick", (data: any) => {
@@ -2544,17 +2832,6 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
 
   room.onMessage("round_evaluated", (data: any) => {
     if (data) {
-      tarajuGameState.lastResult = {
-        round: data.round,
-        sum: data.sum,
-        average: data.average,
-        target: data.target,
-        winnerSessionIds: data.winnerSessionIds || [],
-        guesses: data.guesses || [],
-      };
-      tarajuGameState.phase = "results";
-      stopTarajuGameTimers();
-
       if (data.players && Array.isArray(data.players)) {
         data.players.forEach((sp: any) => {
           const lp = tarajuGameState.players.find((p) => p.sessionId === sp.sessionId);
@@ -2568,16 +2845,16 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
         });
       }
 
-      const localPlayer = tarajuGameState.players.find(
-        (p) => p.sessionId === (activeRoom?.sessionId || "") || p.userId === user.id
-      );
-      if (localPlayer && data.winnerSessionIds?.includes(localPlayer.sessionId)) {
-        playTarajuSound("win");
-      } else {
-        playTarajuSound("lose");
-      }
+      const res: TarajuRoundResult = {
+        round: data.round,
+        sum: data.sum,
+        average: data.average,
+        target: data.target,
+        winnerSessionIds: data.winnerSessionIds || [],
+        guesses: data.guesses || [],
+      };
 
-      renderGameActiveView(user);
+      startStepByStepResults(res, user);
     }
   });
 
