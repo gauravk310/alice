@@ -1381,7 +1381,7 @@ function showRoundIntro(roundNumber: number, _user: UserProfile, onComplete: () 
         <span class="intro-diamond">♦</span> KING OF DIAMONDS <span class="intro-diamond">♦</span>
       </div>
       <h1 class="taraju-round-intro-title">ROUND ${roundNumber}</h1>
-      <div class="taraju-round-intro-jp">美人投票 • 天秤のゲーム</div>
+      <div class="taraju-round-intro-jp">BEAUTY CONTEST • NUMBER SCALE 0 - 100</div>
       <p class="taraju-round-intro-desc">
         Select a number from 0 to 100. Target is group average × 0.7. Closest guess survives.
       </p>
@@ -2170,11 +2170,11 @@ function renderGameActiveView(user: UserProfile) {
           </div>
 
           <div class="taraju-results-container">
-            <!-- Header Banner (Image 2 style) -->
+            <!-- Header Banner (English Only) -->
             <div class="taraju-results-rule-header">
-              <span class="taraju-rule-japanese-tag">【ルール】</span>
+              <span class="taraju-rule-japanese-tag">RULE</span>
               <div class="taraju-rule-japanese-title">
-                全員が選んだ数字の <span class="highlight-cyan">平均値</span> に <span class="highlight-red">0.7</span> を掛ける
+                Multiply the <span class="highlight-cyan">Average</span> of all chosen numbers by <span class="highlight-red">0.7</span>
               </div>
             </div>
 
@@ -2260,7 +2260,7 @@ function renderGameActiveView(user: UserProfile) {
                   <div class="taraju-calc-equal-sign">=</div>
                   <div class="taraju-calc-avg-result-box">
                     <span class="calc-avg-number">${lastRes.average.toFixed(2)}</span>
-                    <span class="calc-avg-label">AVERAGE (平均値)</span>
+                    <span class="calc-avg-label">AVERAGE</span>
                   </div>
                 </div>
 
@@ -2268,21 +2268,21 @@ function renderGameActiveView(user: UserProfile) {
                 <div class="taraju-calc-multiplication-block">
                   <div class="taraju-calc-formula-col">
                     <div class="taraju-calc-big-box avg-val-box">${lastRes.average.toFixed(2)}</div>
-                    <div class="taraju-calc-column-sublabel">平均値 (Average)</div>
+                    <div class="taraju-calc-column-sublabel">Average</div>
                   </div>
 
                   <div class="taraju-calc-operator">×</div>
 
                   <div class="taraju-calc-formula-col">
                     <div class="taraju-calc-big-box constant-val-box">0.7</div>
-                    <div class="taraju-calc-column-sublabel">定数 (Multiplier)</div>
+                    <div class="taraju-calc-column-sublabel">Multiplier</div>
                   </div>
 
                   <div class="taraju-calc-operator">=</div>
 
                   <div class="taraju-calc-formula-col">
                     <div class="taraju-calc-big-box target-val-box">${lastRes.target.toFixed(2)}</div>
-                    <div class="taraju-calc-column-sublabel">答え (Target)</div>
+                    <div class="taraju-calc-column-sublabel">Target</div>
                   </div>
                 </div>
               </div>
