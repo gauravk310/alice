@@ -1735,7 +1735,7 @@ function evaluateRound(user: UserProfile) {
   // Ensure every active player has a guess (fallback to 50 if timeout)
   activePlayers.forEach((p) => {
     if (p.currentGuess === null || p.currentGuess === undefined) {
-      p.currentGuess = currentChosenBalance || 50;
+      p.currentGuess = typeof currentChosenBalance === "number" ? currentChosenBalance : 50;
       p.isSubmitted = true;
     }
   });
