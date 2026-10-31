@@ -1612,7 +1612,7 @@ body:has(.login-container) {
   margin-top: 2px;
 }
 
-/* ==================== PUBG TACTICAL CUSTOM ROOM VIEW ==================== */
+/* ==================== CUSTOM ROOM BROWSER (CLEAN WHITE THEME) ==================== */
 .pubg-room-wrapper {
   width: 100vw;
   height: 100vh;
@@ -1625,14 +1625,14 @@ body:has(.login-container) {
   position: fixed;
   inset: 0;
   z-index: 10;
+  background: #ffffff;
 }
 
 .pubg-room-window {
   width: 100%;
   height: 100%;
   flex: 1;
-  background: radial-gradient(circle at 50% 25%, rgba(14, 165, 233, 0.08) 0%, rgba(5, 11, 24, 0.98) 75%),
-              linear-gradient(180deg, rgba(12, 20, 39, 0.98) 0%, rgba(3, 8, 20, 0.99) 100%);
+  background: #ffffff;
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -1647,10 +1647,8 @@ body:has(.login-container) {
   align-items: center;
   justify-content: space-between;
   padding: 16px 28px;
-  background: rgba(3, 8, 20, 0.88);
-  border-bottom: 1px solid rgba(56, 189, 248, 0.16);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #ffffff;
+  border-bottom: 1px solid #e4e4e7;
   flex-shrink: 0;
 }
 
@@ -1663,23 +1661,24 @@ body:has(.login-container) {
 .pubg-room-id-box {
   display: flex;
   align-items: center;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 6px;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .pubg-room-id-box:focus-within {
-  border-color: #38bdf8;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.3);
+  background: #ffffff;
+  border-color: #18181b;
+  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.08);
 }
 
 .pubg-room-id-input {
   background: transparent;
   border: none;
-  padding: 8px 16px;
-  color: #ffffff;
+  padding: 8px 14px;
+  color: #18181b;
   font-size: 13.5px;
   font-family: inherit;
   outline: none;
@@ -1687,45 +1686,44 @@ body:has(.login-container) {
 }
 
 .pubg-room-id-input::placeholder {
-  color: #64748b;
+  color: #a1a1aa;
 }
 
 .btn-pubg-enter {
-  background: #3b5771;
+  background: #18181b;
   color: #ffffff;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px 20px;
+  border-radius: 6px;
+  padding: 6px 16px;
+  margin-right: 3px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 0.3px;
+  transition: all 0.15s ease;
 }
 
 .btn-pubg-enter:hover {
-  background: #4b6f91;
-  color: #ffffff;
+  background: #27272a;
 }
 
 .btn-pubg-close {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #94a3b8;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  color: #71717a;
   width: 36px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-pubg-close:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: #ef4444;
-  color: #ef4444;
+  background: #f4f4f5;
+  border-color: #d4d4d8;
+  color: #18181b;
 }
 
 /* Room List Container */
@@ -1733,8 +1731,9 @@ body:has(.login-container) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 20px 28px;
+  gap: 12px;
+  padding: 24px 28px;
+  background: #fafafa;
   min-height: 0;
   max-height: none;
   overflow-y: auto;
@@ -1745,11 +1744,11 @@ body:has(.login-container) {
 }
 
 .pubg-room-list::-webkit-scrollbar-track {
-  background: rgba(11, 19, 41, 0.5);
+  background: #fafafa;
 }
 
 .pubg-room-list::-webkit-scrollbar-thumb {
-  background: rgba(56, 189, 248, 0.25);
+  background: #d4d4d8;
   border-radius: 4px;
 }
 
@@ -1760,15 +1759,15 @@ body:has(.login-container) {
   justify-content: center;
   gap: 12px;
   padding: 80px 20px;
-  color: #64748b;
+  color: #71717a;
   font-size: 14px;
 }
 
 .pubg-loading-spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(56, 189, 248, 0.2);
-  border-top-color: #38bdf8;
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid #e4e4e7;
+  border-top-color: #18181b;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1779,18 +1778,18 @@ body:has(.login-container) {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 18px;
-  background: linear-gradient(90deg, rgba(16, 25, 46, 0.85) 0%, rgba(11, 18, 34, 0.75) 50%, rgba(16, 25, 46, 0.85) 100%);
-  border: 1px solid rgba(56, 189, 248, 0.12);
-  border-radius: 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 14px 20px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
 }
 
 .pubg-room-row:hover {
-  background: linear-gradient(90deg, rgba(14, 165, 233, 0.12) 0%, rgba(16, 25, 46, 0.95) 100%);
-  border-color: rgba(56, 189, 248, 0.45);
-  transform: translateX(2px);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 /* 1. Room Info Column */
@@ -1803,9 +1802,9 @@ body:has(.login-container) {
 }
 
 .pubg-room-title {
-  font-size: 15.5px;
-  font-weight: 700;
-  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  color: #18181b;
   letter-spacing: -0.2px;
   white-space: nowrap;
   overflow: hidden;
@@ -1814,62 +1813,59 @@ body:has(.login-container) {
 
 .pubg-room-created-by {
   font-size: 12.5px;
-  color: #94a3b8;
+  color: #71717a;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .pubg-host-name {
-  color: #e2e8f0;
-  font-weight: 600;
+  color: #27272a;
+  font-weight: 500;
 }
 
 .pubg-room-badge-id {
   font-size: 11px;
   font-family: monospace;
-  color: #38bdf8;
-  background: rgba(14, 165, 233, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  padding: 1px 6px;
+  color: #52525b;
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
+  padding: 2px 7px;
   border-radius: 4px;
+  font-weight: 500;
 }
 
-/* 2. Mode Badge Column (Diamond in Gold) */
+/* 2. Mode Emblem Column */
 .pubg-room-mode-wrap {
   display: flex;
   align-items: center;
-  gap: 12px;
-  width: 130px;
+  gap: 10px;
+  width: 120px;
   flex-shrink: 0;
 }
 
 .pubg-diamond-badge {
-  width: 32px;
-  height: 32px;
-  border: 1.5px solid #eab308;
-  background: rgba(234, 179, 8, 0.15);
-  transform: rotate(45deg);
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e4e4e7;
+  background: #f4f4f5;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 10px rgba(234, 179, 8, 0.25);
-  border-radius: 4px;
 }
 
 .pubg-diamond-inner {
-  transform: rotate(-45deg);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #facc15;
+  color: #18181b;
 }
 
 .pubg-mode-text {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #fef08a;
-  letter-spacing: 0.3px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #18181b;
 }
 
 /* 3. Lock Column */
@@ -1879,21 +1875,21 @@ body:has(.login-container) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #64748b;
+  color: #a1a1aa;
 }
 
 .pubg-lock-icon {
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
-/* 4. Stats Column (Players present / Max) */
+/* 4. Stats Column */
 .pubg-room-stats-wrap {
   width: 150px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 12.5px;
-  color: #94a3b8;
+  color: #71717a;
   flex-shrink: 0;
 }
 
@@ -1904,16 +1900,16 @@ body:has(.login-container) {
 }
 
 .pubg-stats-label {
-  color: #94a3b8;
+  color: #71717a;
 }
 
 .pubg-stats-val.stat-joined {
-  color: #22c55e;
-  font-weight: 700;
+  color: #16a34a;
+  font-weight: 600;
 }
 
 .pubg-stats-val.stat-spectate {
-  color: #38bdf8;
+  color: #2563eb;
   font-weight: 600;
 }
 
@@ -1926,32 +1922,30 @@ body:has(.login-container) {
 }
 
 .btn-pubg-join {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #f1f5f9;
+  background: #18181b;
+  border: 1px solid #18181b;
+  color: #ffffff;
   padding: 7px 18px;
-  border-radius: 5px;
+  border-radius: 6px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  letter-spacing: 0.3px;
+  transition: all 0.15s ease;
 }
 
 .btn-pubg-join:hover:not(:disabled) {
-  background: #0284c7;
-  border-color: #38bdf8;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
-  color: #ffffff;
+  background: #27272a;
+  border-color: #27272a;
   transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .btn-pubg-join:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #64748b;
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+  color: #a1a1aa;
 }
 
 /* Empty State */
@@ -1967,41 +1961,39 @@ body:has(.login-container) {
 }
 
 .pubg-empty-radar {
-  width: 68px;
-  height: 68px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
-  background: rgba(14, 165, 233, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: #f4f4f5;
+  border: 1px solid #e4e4e7;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #38bdf8;
+  color: #71717a;
 }
 
 .pubg-empty-title {
   font-size: 17px;
-  font-weight: 700;
-  color: #ffffff;
+  font-weight: 600;
+  color: #18181b;
 }
 
 .pubg-empty-desc {
   font-size: 13.5px;
-  color: #94a3b8;
+  color: #71717a;
   max-width: 440px;
   line-height: 1.5;
 }
 
-/* Bottom Footer Bar (Right-Aligned, No Chat Section) */
+/* Bottom Footer Bar */
 .pubg-room-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 16px 28px;
-  background: rgba(3, 8, 20, 0.88);
-  border-top: 1px solid rgba(56, 189, 248, 0.16);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  gap: 14px;
+  padding: 14px 28px;
+  background: #ffffff;
+  border-top: 1px solid #e4e4e7;
+  gap: 12px;
   flex-shrink: 0;
 }
 
@@ -2016,20 +2008,19 @@ body:has(.login-container) {
   align-items: center;
   gap: 6px;
   padding: 9px 18px;
-  background: #334155;
-  border: 1px solid #475569;
-  color: #f1f5f9;
-  border-radius: 5px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  color: #18181b;
+  border-radius: 8px;
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-pubg-refresh:hover {
-  background: #475569;
-  border-color: #64748b;
-  color: #ffffff;
+  background: #f4f4f5;
+  border-color: #d4d4d8;
 }
 
 .btn-pubg-refresh.spinning svg {
@@ -2040,28 +2031,28 @@ body:has(.login-container) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 24px;
-  background: rgba(234, 179, 8, 0.15);
-  border: 2px solid #eab308;
-  color: #fef08a;
-  border-radius: 5px;
+  padding: 9px 20px;
+  background: #18181b;
+  border: 1px solid #18181b;
+  color: #ffffff;
+  border-radius: 8px;
   font-size: 13.5px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 14px rgba(234, 179, 8, 0.25);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .btn-pubg-create-room:hover {
-  background: #eab308;
-  color: #0b1329;
-  box-shadow: 0 0 24px rgba(234, 179, 8, 0.6);
+  background: #27272a;
+  border-color: #27272a;
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 24, 27, 0.15);
 }
 
-/* Upgraded PUBG Create Room Modal */
+/* Create Room Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -2069,9 +2060,9 @@ body:has(.login-container) {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(2, 6, 18, 0.85);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 999999;
   display: flex;
   align-items: center;
@@ -2097,18 +2088,18 @@ body:has(.login-container) {
 }
 
 .modal-content-card {
-  background: linear-gradient(180deg, #0b1329 0%, #070d1e 100%);
-  border: 1px solid rgba(56, 189, 248, 0.28);
-  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 14px;
   width: 100%;
   max-width: 480px;
-  padding: 26px 28px;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.85), 0 0 35px rgba(14, 165, 233, 0.15);
+  padding: 24px;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 20px;
   position: relative;
-  color: #f1f5f9;
+  color: #18181b;
 }
 
 .pubg-modal-card {
@@ -2119,37 +2110,37 @@ body:has(.login-container) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(56, 189, 248, 0.15);
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e4e4e7;
 }
 
 .modal-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  color: #18181b;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .modal-close-btn {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  color: #94a3b8;
-  border-radius: 8px;
-  width: 32px;
-  height: 32px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  color: #71717a;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .modal-close-btn:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: #ef4444;
-  color: #ef4444;
+  background: #f4f4f5;
+  color: #18181b;
+  border-color: #d4d4d8;
 }
 
 .form-field-group {
@@ -2160,55 +2151,57 @@ body:has(.login-container) {
 
 .form-field-label {
   font-size: 13px;
-  font-weight: 700;
-  color: #cbd5e1;
-  letter-spacing: 0.2px;
+  font-weight: 500;
+  color: #18181b;
 }
 
 .modal-input-text {
   width: 100%;
-  padding: 12px 16px;
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 10px;
-  color: #ffffff;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  color: #18181b;
   font-size: 14px;
   font-family: inherit;
   outline: none;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .modal-input-text:focus {
-  border-color: #38bdf8;
-  background: rgba(15, 23, 42, 0.95);
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+  border-color: #18181b;
+  box-shadow: 0 0 0 2px rgba(24, 24, 27, 0.08);
+}
+
+.modal-input-text::placeholder {
+  color: #a1a1aa;
 }
 
 .modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(56, 189, 248, 0.12);
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #e4e4e7;
 }
 
 .btn-modal-cancel {
-  padding: 10px 20px;
+  padding: 8px 16px;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  color: #cbd5e1;
-  font-size: 13.5px;
-  font-weight: 700;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  color: #71717a;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .btn-modal-cancel:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: #f4f4f5;
+  color: #18181b;
+  border-color: #d4d4d8;
 }
 
 .pubg-modal-modes-grid {
@@ -2223,29 +2216,31 @@ body:has(.login-container) {
   align-items: center;
   gap: 8px;
   padding: 12px 6px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   text-align: center;
 }
 
 .pubg-modal-mode-card:hover {
-  background: rgba(14, 165, 233, 0.12);
-  border-color: rgba(56, 189, 248, 0.4);
+  background: #fafafa;
+  border-color: #d4d4d8;
 }
 
 .pubg-modal-mode-card.selected {
-  background: rgba(234, 179, 8, 0.15);
-  border-color: #eab308;
-  box-shadow: 0 0 14px rgba(234, 179, 8, 0.3);
+  background: #fafafa;
+  border-color: #18181b;
+  box-shadow: 0 0 0 1px #18181b;
 }
 
 .pubg-diamond-badge.small {
-  width: 26px;
-  height: 26px;
-  border-width: 1.2px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #e4e4e7;
+  background: #f4f4f5;
+  border-radius: 4px;
 }
 
 .modal-mode-info {
@@ -2256,40 +2251,36 @@ body:has(.login-container) {
 
 .modal-mode-title {
   font-size: 12px;
-  font-weight: 700;
-  color: #ffffff;
+  font-weight: 600;
+  color: #18181b;
 }
 
 .modal-mode-sub {
   font-size: 11px;
-  color: #94a3b8;
+  color: #71717a;
 }
 
 .btn-pubg-modal-submit {
-  padding: 10px 24px;
-  border-radius: 10px;
-  background: rgba(234, 179, 8, 0.2);
-  border: 2px solid #eab308;
-  color: #fef08a;
-  font-size: 13.5px;
-  font-weight: 800;
+  padding: 9px 20px;
+  border-radius: 8px;
+  background: #18181b;
+  border: 1px solid #18181b;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 0 14px rgba(234, 179, 8, 0.3);
-  transition: all 0.2s ease;
-  letter-spacing: 0.3px;
+  transition: all 0.15s ease;
 }
 
 .btn-pubg-modal-submit:hover {
-  background: #eab308;
-  color: #0b1329;
-  box-shadow: 0 0 20px rgba(234, 179, 8, 0.6);
-  transform: translateY(-1px);
+  background: #27272a;
+  border-color: #27272a;
 }
 
-/* Responsive Rules for PUBG Custom Room Layout */
+/* Responsive Rules for Custom Room Layout */
 @media (max-width: 900px) {
   .pubg-room-wrapper {
-    padding: 10px 12px 24px;
+    padding: 0;
   }
   .pubg-room-info-wrap {
     min-width: 140px;
@@ -2305,6 +2296,7 @@ body:has(.login-container) {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+    padding: 12px 16px;
   }
   .pubg-topbar-right {
     position: absolute;

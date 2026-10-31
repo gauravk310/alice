@@ -445,7 +445,7 @@ async function renderRoomBrowserView(user: UserProfile) {
       <div class="modal-content-card pubg-modal-card">
         <div class="modal-header">
           <div class="modal-title">
-            ${renderLucideIcon(Plus, { width: 18, height: 18, style: "color: #facc15;" })}
+            ${renderLucideIcon(Plus, { width: 18, height: 18 })}
             Create Custom Room
           </div>
           <button class="modal-close-btn" id="btn-close-create-modal" title="Close">
