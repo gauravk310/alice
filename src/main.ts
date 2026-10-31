@@ -1,6 +1,9 @@
 import { Client } from "@colyseus/sdk";
 import Swal from "sweetalert2";
 import "./style.css";
+import { initCursorGrid } from "./CursorGrid.ts";
+import { initSpecularButton, renderSpecularButtonHtml } from "./SpecularButton.ts";
+import { initSplitFlapText } from "./SplitFlapText.ts";
 import {
   type UserProfile,
   getStoredUser,
@@ -11,7 +14,6 @@ import {
 } from "./auth.ts";
 import {
   renderLucideIcon,
-  ShieldCheck,
   LogOut,
   Gamepad2,
   ChevronLeft,
@@ -78,6 +80,46 @@ let roomPlayers: JoinedPlayer[] = [];
 let roomChatHistory: ChatMessage[] = [];
 let isLobbyChatOpen = false;
 let unreadChatCount = 0;
+
+// CursorGrid, SpecularButton & SplitFlapText cleanup — call before rendering any new view
+let cursorGridCleanup: (() => void) | null = null;
+let specularButtonCleanup: (() => void) | null = null;
+let splitFlapCleanup: (() => void) | null = null;
+
+function disposeSpecularButton() {
+  specularButtonCleanup?.();
+  specularButtonCleanup = null;
+}
+
+function disposeSplitFlapText() {
+  splitFlapCleanup?.();
+  splitFlapCleanup = null;
+}
+
+function disposeCursorGrid() {
+  cursorGridCleanup?.();
+  cursorGridCleanup = null;
+  disposeSpecularButton();
+  disposeSplitFlapText();
+}
+function mountCursorGrid(canvasId: string, containerId: string) {
+  const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
+  const container = document.getElementById(containerId);
+  if (!canvas || !container) return;
+  cursorGridCleanup = initCursorGrid(container, canvas, {
+    lightMode: true,
+    cellSize: 60,
+    gridOpacity: 0.09,
+    maxOpacity: 0.9,
+    fillOpacity: 0.05,
+    spotlight: 0.7,
+    radius: 160,
+    edgeFade: 0.18,
+    intro: true,
+    clickPulse: true,
+    pulseSpeed: 550,
+  });
+}
 
 function updateFloatingChatBadge() {
   const badge = document.getElementById("chat-unread-badge");
@@ -297,7 +339,7 @@ function attachProfileDropdownEvents() {
       confirmButtonText: "Yes, Sign Out",
       cancelButtonText: "Cancel",
       confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#334155",
+      cancelButtonColor: "#f8fafc",
       reverseButtons: true,
       focusCancel: true,
       customClass: {
@@ -1044,7 +1086,7 @@ function renderRoomLobbyView(user: UserProfile) {
       confirmButtonText: "Yes, Leave",
       cancelButtonText: "Stay in Room",
       confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#334155",
+      cancelButtonColor: "#f8fafc",
       reverseButtons: true,
       focusCancel: true,
       customClass: {
@@ -2532,8 +2574,8 @@ function attachGameActiveEvents(user: UserProfile) {
       showCancelButton: true,
       confirmButtonText: "Yes, Leave",
       cancelButtonText: "Stay",
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#475569",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#f8fafc",
       reverseButtons: true,
       customClass: {
         popup: "alice-swal-popup",
@@ -2652,7 +2694,7 @@ async function joinRoomByCode(user: UserProfile, code: string) {
         title: "Room Not Found",
         text: `No active room found with code #${formattedCode}`,
         confirmButtonText: "OK",
-        confirmButtonColor: "#38bdf8",
+        confirmButtonColor: "#0284c7",
         customClass: {
           popup: "alice-swal-popup",
           title: "alice-swal-title",
@@ -2670,7 +2712,7 @@ async function joinRoomByCode(user: UserProfile, code: string) {
         title: "Room Not Found",
         text: `No active room found with code #${formattedCode}`,
         confirmButtonText: "OK",
-        confirmButtonColor: "#38bdf8",
+        confirmButtonColor: "#0284c7",
         customClass: {
           popup: "alice-swal-popup",
           title: "alice-swal-title",
@@ -2685,7 +2727,7 @@ async function joinRoomByCode(user: UserProfile, code: string) {
       title: "Lookup Failed",
       text: "Error searching for room code. Please try again.",
       confirmButtonText: "OK",
-      confirmButtonColor: "#38bdf8",
+      confirmButtonColor: "#0284c7",
       customClass: {
         popup: "alice-swal-popup",
         title: "alice-swal-title",
@@ -3082,81 +3124,103 @@ function renderPlayStoreView(user: UserProfile) {
     ? `<img src="${user.picture}" alt="${user.name}" class="dropdown-avatar-large" referrerpolicy="no-referrer" />`
     : `<div class="dropdown-avatar-initials-large">${(user.name || "U").charAt(0).toUpperCase()}</div>`;
 
+  disposeCursorGrid();
+
   app.innerHTML = `
-    <div class="playstore-container">
-      <!-- Navigation Header -->
-      <header class="playstore-header">
-        <div class="header-left">
-          <div class="navbar-brand" id="logo-refresh" title="Alice Multiplayer">
-            <div class="navbar-logo-icon">
-              ${renderLucideIcon(Gamepad2, { width: 20, height: 20 })}
-            </div>
-            <div>
-              <div class="navbar-title">Alice Multiplayer</div>
-              <div class="navbar-subtitle">Arena v0.1</div>
-            </div>
-          </div>
+    <div class="home-landing-container" id="home-landing-root">
+      <!-- WebGL cursor grid canvas (background) -->
+      <canvas id="home-cursor-canvas" class="cursor-grid-canvas" aria-hidden="true"></canvas>
 
-          <nav class="playstore-nav-tabs">
-            <div class="playstore-tab active" data-tab="home">Home</div>
-          </nav>
-        </div>
+      <!-- Profile icon top-right -->
+      <div class="home-header-right">
+        <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
+          ${avatarMarkupSmall}
+        </button>
+        ${renderProfileDropdownHtml(user, avatarMarkupLarge)}
+      </div>
 
-        <div class="header-right">
-          <!-- Profile Avatar Button -->
-          <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
-            ${avatarMarkupSmall}
-          </button>
-
-          <!-- Profile Dropdown Menu -->
-          ${renderProfileDropdownHtml(user, avatarMarkupLarge)}
-        </div>
-      </header>
-
-      <!-- Main Store Content -->
-      <main class="store-main-content">
-        <!-- Section: Apps (Taraju) -->
-        <section class="store-section">
-          <div class="apps-grid-row">
-            <!-- Taraju App Item -->
-            <div class="app-store-card" id="app-card-taraju">
-              <img src="/taraju-icon.jpg" alt="Taraju App Icon" class="app-card-icon" />
-              <div class="app-card-info">
-                <div class="app-card-title">Taraju</div>
-                <div class="app-card-category">Alice Arena • Strategy & Matchmaking</div>
-                <div class="app-card-rating">
-                  <span>• Multiplayer</span>
-                </div>
-              </div>
-              <button class="app-card-play-btn" id="btn-card-play">
-                Enter
-              </button>
-            </div>
-          </div>
-        </section>
-      </main>
+      <!-- Centered content -->
+      <div class="home-center-content">
+        <div class="home-game-label">[Game]</div>
+        <div id="home-split-flap" class="home-split-flap-wrapper"></div>
+        ${renderSpecularButtonHtml({
+          id: "btn-get-started",
+          text: "Get Started",
+          size: "lg",
+          radius: 18,
+          tint: "#18181b",
+          tintOpacity: 1,
+          textColor: "#fafafa",
+          className: "home-get-started-btn",
+        })}
+        <div class="home-created-by">Created by <a href="https://www.instagram.com/seven.learn" target="_blank" rel="noopener noreferrer" class="home-author-link">Gaurav (seven)</a></div>
+      </div>
     </div>
   `;
 
+  // Mount cursor grid
+  mountCursorGrid("home-cursor-canvas", "home-landing-root");
+
+  // Mount SplitFlapText for KING OF HEARTS
+  disposeSplitFlapText();
+  const splitFlapContainer = document.getElementById("home-split-flap");
+  if (splitFlapContainer) {
+    splitFlapCleanup = initSplitFlapText(splitFlapContainer, {
+      words: ["KING OF HEARTS"],
+      flipDuration: 0.12,
+      stagger: 0.06,
+      cycleDelay: 2400,
+      charset: "alphanumeric",
+      flipsPerChar: 8,
+      order: "left",
+      align: "center",
+      tileStyle: "board",
+      tileColor: "#111827",
+      textColor: "#f8fafc",
+      glare: 0,
+      depth: 0.5,
+      tileRadius: 8,
+      gap: 6,
+      fontSize: "clamp(24px, 4vw, 48px)",
+      loop: true,
+      padTo: 14,
+      intro: true,
+    });
+  }
+
+  // Mount Specular Button on Get Started
+  const btnGetStarted = document.getElementById("btn-get-started") as HTMLButtonElement | null;
+  if (btnGetStarted) {
+    specularButtonCleanup = initSpecularButton(btnGetStarted, {
+      size: "lg",
+      radius: 18,
+      tint: "#18181b",
+      tintOpacity: 1,
+      textColor: "#fafafa",
+      lineColor: "#ffffff",
+      baseColor: "#3f3f46",
+      intensity: 1,
+      idleIntensity: 0.35,
+      shineSize: 10,
+      shineFade: 34,
+      thickness: 1.2,
+      glow: 1,
+      speed: 0.35,
+      followMouse: true,
+      proximity: 250,
+      autoAnimate: false,
+    });
+
+    // Get Started -> navigate to Arena
+    btnGetStarted.addEventListener("click", () => {
+      disposeCursorGrid();
+      saveNavigationState("arena");
+      renderArenaView(user);
+    });
+  }
+
   // Profile dropdown events
   attachProfileDropdownEvents();
-
-  // Navigation to Arena Matchmaking (Direct on page, NO MODAL)
-  const navigateToArena = () => {
-    saveNavigationState("arena");
-    renderArenaView(user);
-  };
-
-  document.getElementById("app-card-taraju")?.addEventListener("click", navigateToArena);
-  document.getElementById("btn-card-play")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    navigateToArena();
-  });
-
-  // Logo refresh
-  document.getElementById("logo-refresh")?.addEventListener("click", () => {
-    renderPlayStoreView(user);
-  });
 }
 
 // ==========================================
@@ -3166,32 +3230,31 @@ function renderLoginView() {
   const app = document.getElementById("app");
   if (!app) return;
 
+  disposeCursorGrid();
+
   app.innerHTML = `
-    <div class="ambient-bg">
-      <div class="ambient-orb ambient-orb-1"></div>
-      <div class="ambient-orb ambient-orb-2"></div>
-      <div class="ambient-orb ambient-orb-3"></div>
-    </div>
+    <div class="login-container" id="login-root">
+      <!-- WebGL cursor grid canvas (background) -->
+      <canvas id="login-cursor-canvas" class="cursor-grid-canvas" aria-hidden="true"></canvas>
 
-    <div class="login-container">
-      <div class="login-card">
-        <h1 class="login-title">Welcome Back</h1>
-        <p class="login-subtitle">Sign in with your Google account to access Google Play & the Alice Arena.</p>
+      <div class="login-center-panel">
 
-        <!-- Official Google Sign-In Button Container -->
+        <!-- Game label -->
+        <div class="login-game-label">[Game]</div>
+
+        <!-- King of Diamonds card -->
+        <img src="/king-of-diamonds.png" alt="King of Diamonds" class="login-card-image" />
+
+        <!-- Google Sign-In button -->
         <div id="google-btn-container" class="google-button-wrapper">
           <div style="color: #64748b; font-size: 13px;">Loading Google Sign-In...</div>
-        </div>
-
-        <div class="login-badges">
-          <div class="badge-item">
-            ${renderLucideIcon(ShieldCheck, { width: 15, height: 15 })}
-            Google OAuth 2.0
-          </div>
         </div>
       </div>
     </div>
   `;
+
+  // Mount cursor grid
+  mountCursorGrid("login-cursor-canvas", "login-root");
 
   initGoogleAuth();
 }

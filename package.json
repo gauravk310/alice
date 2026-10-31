@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@types/matter-js": "^0.20.2",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   },
@@ -16,6 +17,7 @@
     "@colyseus/sdk": "^0.18.5",
     "lucide": "^1.55.0",
     "lucide-react": "^1.55.0",
+    "matter-js": "^0.20.0",
     "phaser": "^4.2.1",
     "sweetalert2": "^11.26.25"
   }
