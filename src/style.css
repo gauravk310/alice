@@ -3013,6 +3013,75 @@ body {
   background: #10b981;
 }
 
+.taraju-status-pill.offline {
+  background: #475569;
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.5px;
+}
+
+.taraju-player-col.is-offline {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+  transition: all 0.3s ease;
+}
+
+.taraju-player-col.is-offline:hover {
+  opacity: 0.8;
+}
+
+.taraju-avatar-circle-wrap.avatar-offline {
+  border-color: #64748b !important;
+  box-shadow: 0 0 10px rgba(100, 116, 139, 0.4) !important;
+  filter: grayscale(0.85);
+}
+
+.taraju-avatar-offline-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #64748b;
+  border: 2px solid #0f172a;
+}
+
+.taraju-offline-badge {
+  position: absolute;
+  bottom: -6px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.6px;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 2;
+}
+
+.taraju-offline-text {
+  color: #ef4444;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.taraju-player-points-tag.points-offline {
+  color: #94a3b8;
+  border-color: #64748b;
+  background: rgba(100, 116, 139, 0.15);
+}
+
+.taraju-number-box.is-offline {
+  background: #1e293b !important;
+  color: #64748b !important;
+  border-color: #334155 !important;
+  box-shadow: none !important;
+}
+
 /* NUMBER BADGE BOX (Directly under avatar, exact replica of mint box in taraju-banner.png) */
 .taraju-number-box {
   width: 130px;

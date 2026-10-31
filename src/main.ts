@@ -1113,6 +1113,7 @@ export interface TarajuPlayer {
   currentGuess: number | null; // 0 - 100
   isSubmitted: boolean;        // Locked in
   isEliminated: boolean;       // points <= 0
+  isOffline?: boolean;         // Player left the room
   lastRoundWon: boolean;
   pointsLostLastRound: number; // 0 or 1
   diff?: number;
@@ -1691,7 +1692,7 @@ function handlePlayerSubmitChoice(user: UserProfile) {
 }
 
 function checkIfAllSubmittedAndEvaluate(user: UserProfile) {
-  const activePlayers = tarajuGameState.players.filter((p) => !p.isEliminated);
+  const activePlayers = tarajuGameState.players.filter((p) => !p.isEliminated && !p.isOffline);
   if (activePlayers.length === 0) return;
 
   const allSubmitted = activePlayers.every((p) => p.isSubmitted);
@@ -1713,7 +1714,7 @@ function evaluateRound(user: UserProfile) {
   if (tarajuGameState.phase !== "playing") return;
   stopTarajuGameTimers();
 
-  const activePlayers = tarajuGameState.players.filter((p) => !p.isEliminated);
+  const activePlayers = tarajuGameState.players.filter((p) => !p.isEliminated && !p.isOffline);
   if (activePlayers.length === 0) return;
 
   // Ensure every active player has a guess (fallback to 50 if timeout)
@@ -1843,7 +1844,7 @@ function startStepByStepResults(roundResult: TarajuRoundResult, user: UserProfil
       currentResultsStep = 4;
       renderGameActiveView(user);
 
-      const survivors = tarajuGameState.players.filter((p) => p.points > 0);
+      const survivors = tarajuGameState.players.filter((p) => p.points > 0 && !p.isOffline);
       if (survivors.length <= 1) {
         resultsStepTimeouts.push(
           setTimeout(() => {
@@ -1933,6 +1934,14 @@ function handleTarajuSyncAction(action: any, user: UserProfile) {
 
   if (action.type === "START_COUNTDOWN") {
     startMatchmakingCountdown(user);
+  } else if (action.type === "PLAYER_OFFLINE" || action.type === "PLAYER_LEFT") {
+    const target = tarajuGameState.players.find((p) => p.sessionId === action.sessionId);
+    if (target) {
+      target.isOffline = true;
+      target.isSubmitted = false;
+      renderGameActiveView(user);
+      checkIfAllSubmittedAndEvaluate(user);
+    }
   } else if (action.type === "PLAYER_GUESS") {
     const target = tarajuGameState.players.find((p) => p.sessionId === action.sessionId);
     if (target && !target.isEliminated) {
@@ -1991,12 +2000,12 @@ function renderGameActiveView(user: UserProfile) {
       (!p.isAi && !activeRoom)
   ) || tarajuGameState.players[0];
 
-  const activeCount = tarajuGameState.players.filter((p) => !p.isEliminated).length;
+  const activeCount = tarajuGameState.players.filter((p) => !p.isEliminated && !p.isOffline).length;
   const isResultsPhase = tarajuGameState.phase === "results" || tarajuGameState.phase === "victory";
   const lastRes = tarajuGameState.lastResult;
 
   // Survivor calculation for game over
-  const survivors = tarajuGameState.players.filter((p) => p.points > 0);
+  const survivors = tarajuGameState.players.filter((p) => p.points > 0 && !p.isOffline);
   const ultimateWinner = survivors.length === 1 ? survivors[0] : null;
 
   // Partition players into left and right wings
@@ -2018,10 +2027,13 @@ function renderGameActiveView(user: UserProfile) {
   const renderPlayerCol = (p: TarajuPlayer) => {
     const isWinner = isResultsPhase && lastRes?.winnerSessionIds.includes(p.sessionId);
     const isLocal = p.sessionId === localPlayer?.sessionId;
+    const isOffline = Boolean(p.isOffline);
     
     // Guess display under avatar
     let displayedNumber = "??";
-    if (isResultsPhase) {
+    if (isOffline) {
+      displayedNumber = "--";
+    } else if (isResultsPhase) {
       displayedNumber = String(p.currentGuess ?? 50);
     } else if (isLocal && p.currentGuess !== null) {
       displayedNumber = String(p.currentGuess);
@@ -2030,7 +2042,7 @@ function renderGameActiveView(user: UserProfile) {
     }
 
     return `
-      <div class="taraju-player-col ${isWinner ? "is-winner" : ""} ${p.isEliminated ? "is-eliminated" : ""}" id="player-col-${p.sessionId}">
+      <div class="taraju-player-col ${isWinner ? "is-winner" : ""} ${p.isEliminated ? "is-eliminated" : ""} ${isOffline ? "is-offline" : ""}" id="player-col-${p.sessionId}">
         <!-- Winner Crown & Golden Label -->
         <div class="taraju-col-winner-label">
           <span class="taraju-crown-icon">👑</span>
@@ -2043,39 +2055,52 @@ function renderGameActiveView(user: UserProfile) {
           <div class="taraju-avatar-box">
             <!-- Submission indicator pill -->
             ${
-              p.isSubmitted && !isResultsPhase
+              isOffline
+                ? `<div class="taraju-status-pill offline">OFFLINE</div>`
+                : p.isSubmitted && !isResultsPhase
                 ? `<div class="taraju-status-pill ready">LOCKED ✓</div>`
                 : !p.isSubmitted && !isResultsPhase && !p.isEliminated
                 ? `<div class="taraju-status-pill">THINKING...</div>`
                 : ""
             }
 
-            <!-- Eliminated badge -->
-            ${p.isEliminated ? `<div class="taraju-eliminated-badge">ELIMINATED</div>` : ""}
+            <!-- Eliminated / Offline badge -->
+            ${
+              isOffline
+                ? `<div class="taraju-offline-badge">OFFLINE</div>`
+                : p.isEliminated
+                ? `<div class="taraju-eliminated-badge">ELIMINATED</div>`
+                : ""
+            }
 
             <!-- Avatar circle -->
-            <div class="taraju-avatar-circle-wrap">
+            <div class="taraju-avatar-circle-wrap ${isOffline ? "avatar-offline" : ""}">
               ${
                 p.picture
                   ? `<img src="${p.picture}" alt="${p.name}" class="taraju-avatar-img" referrerpolicy="no-referrer" />`
                   : `<div class="taraju-avatar-initials">${(p.name || "U").charAt(0).toUpperCase()}</div>`
               }
+              ${isOffline ? `<div class="taraju-avatar-offline-dot" title="Offline"></div>` : ""}
             </div>
 
             <div class="taraju-player-name" title="${escapeHtml(p.name)}">
-              ${p.isHost ? "👑 " : ""}${escapeHtml(p.name)}${isLocal ? " (YOU)" : ""}
+              ${p.isHost ? "👑 " : ""}${escapeHtml(p.name)}${isLocal ? " (YOU)" : ""}${isOffline ? ' <span class="taraju-offline-text">(Offline)</span>' : ""}
             </div>
 
             <!-- Points Tag (10 PTS initially, shows -1 on loss) -->
             <div class="taraju-player-points-tag ${
-              isResultsPhase && isWinner
+              isOffline
+                ? "points-offline"
+                : isResultsPhase && isWinner
                 ? "points-safe"
                 : isResultsPhase && p.pointsLostLastRound > 0
                 ? "points-lost"
                 : ""
             }">
               ${p.points} PTS ${
-                isResultsPhase && p.pointsLostLastRound > 0
+                isOffline
+                  ? "(OFFLINE)"
+                  : isResultsPhase && p.pointsLostLastRound > 0
                   ? "(-1)"
                   : isResultsPhase && isWinner
                   ? "(SAFE)"
@@ -2085,7 +2110,7 @@ function renderGameActiveView(user: UserProfile) {
           </div>
 
           <!-- Glowing Number Box -->
-          <div class="taraju-number-box ${!isResultsPhase && !isLocal ? "is-secret" : ""}" id="num-box-${p.sessionId}">
+          <div class="taraju-number-box ${isOffline ? "is-offline" : !isResultsPhase && !isLocal ? "is-secret" : ""}" id="num-box-${p.sessionId}">
             ${displayedNumber}
           </div>
         </div>
@@ -2098,9 +2123,9 @@ function renderGameActiveView(user: UserProfile) {
       <!-- High-Tech Arena Header Bar -->
       <header class="taraju-arena-header">
         <div class="taraju-header-left">
-          <button class="btn-taraju-back" id="btn-taraju-leave">
+          <button class="btn-taraju-back" id="btn-taraju-leave" title="Leave Match">
             ${renderLucideIcon(ChevronLeft, { width: 16, height: 16 })}
-            <span>Lobby</span>
+            <span>Leave</span>
           </button>
           <div class="taraju-room-badge">
             ${escapeHtml(currentRoomSummary?.roomCode || activeRoom?.roomId ? `#${currentRoomSummary?.roomCode || "TRJ-ARENA"}` : "SOLO ARENA")}
@@ -2500,10 +2525,37 @@ function attachGameActiveEvents(user: UserProfile) {
   });
 
   document.getElementById("btn-taraju-leave")?.addEventListener("click", () => {
-    stopTarajuGameTimers();
-    tarajuGameState = createInitialTarajuGameState();
-    isGameStarted = false;
-    renderRoomLobbyView(user);
+    Swal.fire({
+      title: "Leave Match?",
+      text: "Are you sure you want to leave the room? You will abandon this game and be shown as offline to other players.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Leave",
+      cancelButtonText: "Stay",
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#475569",
+      reverseButtons: true,
+      customClass: {
+        popup: "alice-swal-popup",
+        title: "alice-swal-title",
+        confirmButton: "alice-swal-confirm",
+        cancelButton: "alice-swal-cancel",
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        const mySessionId = activeRoom?.sessionId;
+        if (activeRoom) {
+          try {
+            activeRoom.send("leave_game");
+          } catch (e) {}
+        }
+        broadcastTarajuAction({
+          type: "PLAYER_OFFLINE",
+          sessionId: mySessionId,
+        });
+        leaveCurrentRoom(user);
+      }
+    });
   });
 }
 
@@ -2705,9 +2757,34 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
       if (data.maxPlayers && currentRoomSummary) {
         currentRoomSummary.maxPlayers = data.maxPlayers;
       }
-      if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
+      if (isGameStarted && tarajuGameState.players.length > 0) {
+        data.players.forEach((sp: any) => {
+          const lp = tarajuGameState.players.find((p) => p.sessionId === sp.sessionId);
+          if (lp && sp.isOffline) {
+            lp.isOffline = true;
+          }
+        });
+        tarajuGameState.players.forEach((lp) => {
+          const inRoster = data.players.find((sp: any) => sp.sessionId === lp.sessionId);
+          if (!inRoster || inRoster.isOffline) {
+            lp.isOffline = true;
+          }
+        });
+        renderGameActiveView(user);
+        checkIfAllSubmittedAndEvaluate(user);
+      } else if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
         updateOrRenderLobby(user);
       }
+    }
+  });
+
+  room.onMessage("player_offline", (data: any) => {
+    const target = tarajuGameState.players.find((p) => p.sessionId === data?.sessionId);
+    if (target) {
+      target.isOffline = true;
+      target.isSubmitted = false;
+      renderGameActiveView(user);
+      checkIfAllSubmittedAndEvaluate(user);
     }
   });
 
@@ -2718,7 +2795,14 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
     }
   });
 
-  room.onMessage("player_left", () => {
+  room.onMessage("player_left", (data: any) => {
+    const target = tarajuGameState.players.find((p) => p.sessionId === data?.sessionId);
+    if (target) {
+      target.isOffline = true;
+      target.isSubmitted = false;
+      renderGameActiveView(user);
+      checkIfAllSubmittedAndEvaluate(user);
+    }
     syncPlayersFromRoomState(room, user);
     if (!isGameStarted && !isCountdownActive && tarajuGameState.phase === "lobby") {
       updateOrRenderLobby(user);
@@ -2774,6 +2858,7 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
         currentGuess: null,
         isSubmitted: false,
         isEliminated: Boolean(p.isEliminated),
+        isOffline: Boolean(p.isOffline),
         lastRoundWon: false,
         pointsLostLastRound: 0,
         isAi: false,
@@ -2822,6 +2907,7 @@ function setupRoomListeners(room: any, user: UserProfile, isHost: boolean) {
           if (lp) {
             lp.points = sp.points;
             lp.isEliminated = sp.isEliminated;
+            lp.isOffline = Boolean(sp.isOffline);
             lp.lastRoundWon = sp.lastRoundWon;
             lp.pointsLostLastRound = sp.lastRoundWon ? 0 : 1;
             lp.currentGuess = sp.currentGuess;
