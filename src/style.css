@@ -437,13 +437,13 @@ body {
   position: absolute;
   top: 54px;
   right: 0;
-  width: 375px;
+  width: 290px;
   background: #070d1e;
-  border-radius: 28px;
+  border-radius: 20px;
   box-shadow: 0 16px 45px rgba(0, 0, 0, 0.8), 0 0 20px rgba(14, 165, 233, 0.15);
   border: 1px solid rgba(56, 189, 248, 0.25);
   z-index: 200;
-  padding: 16px;
+  padding: 14px;
   animation: dropdownIn 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
   display: none;
   color: #f1f5f9;
@@ -470,9 +470,9 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 12px 12px 20px;
+  padding: 20px 14px 16px;
   background: rgba(15, 23, 42, 0.7);
-  border-radius: 20px;
+  border-radius: 14px;
   border: 1px solid rgba(56, 189, 248, 0.15);
 }
 
@@ -531,108 +531,15 @@ body {
   font-size: 16px;
   font-weight: 700;
   color: #ffffff;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  word-break: break-word;
 }
 
 .dropdown-user-email {
   font-size: 13px;
   color: #94a3b8;
-  margin-bottom: 14px;
-}
-
-.btn-manage-account {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 100px;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  background: rgba(14, 165, 233, 0.1);
-  color: #38bdf8;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-manage-account:hover {
-  background: rgba(14, 165, 233, 0.2);
-  border-color: rgba(56, 189, 248, 0.5);
-  color: #ffffff;
-}
-
-/* Play Points / Status card inside dropdown */
-.dropdown-status-box {
-  margin-top: 14px;
-  padding: 12px 16px;
-  background: rgba(15, 23, 42, 0.8);
-  border-radius: 14px;
-  border: 1px solid rgba(56, 189, 248, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.status-box-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #cbd5e1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.status-box-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: #38bdf8;
-  background: rgba(14, 165, 233, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  padding: 2px 8px;
-  border-radius: 6px;
-}
-
-/* Dropdown Menu Items */
-.dropdown-menu-list {
-  padding: 8px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.dropdown-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  color: #cbd5e1;
-  font-size: 13.5px;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  border: none;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-}
-
-.dropdown-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-}
-
-.dropdown-menu-item svg {
-  color: #94a3b8;
-  flex-shrink: 0;
-}
-
-.dropdown-divider {
-  height: 1px;
-  background: rgba(56, 189, 248, 0.15);
-  margin: 6px 0;
+  margin-bottom: 0;
+  word-break: break-all;
 }
 
 .btn-dropdown-signout {
@@ -642,7 +549,7 @@ body {
   gap: 8px;
   width: 100%;
   padding: 11px 16px;
-  margin-top: 6px;
+  margin-top: 10px;
   border-radius: 12px;
   background: rgba(220, 38, 38, 0.15);
   border: 1px solid rgba(220, 38, 38, 0.3);
@@ -657,6 +564,7 @@ body {
   background: rgba(220, 38, 38, 0.25);
   border-color: rgba(220, 38, 38, 0.5);
   color: #ffffff;
+  transform: translateY(-1px);
 }
 
 /* ==================== DEVICE FILTER CHIPS ==================== */

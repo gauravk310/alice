@@ -15,12 +15,8 @@ import {
   LogOut,
   Gamepad2,
   ChevronLeft,
-  Search,
-  HelpCircle,
   X,
   Play,
-  Settings,
-  Trophy,
   AlertTriangle,
   Plus,
   Users,
@@ -245,36 +241,7 @@ function renderProfileDropdownHtml(user: UserProfile, avatarMarkupLarge: string)
         </div>
         <div class="dropdown-user-name">${user.name}</div>
         <div class="dropdown-user-email">${user.email || "Verified Google Account"}</div>
-
-        <button class="btn-manage-account" id="btn-manage-account">
-          Manage your Google Account
-        </button>
-
-        <div class="dropdown-status-box">
-          <div class="status-box-title">
-            ${renderLucideIcon(Trophy, { width: 15, height: 15, class: "lucide", style: "color: #f59e0b;" })}
-            Alice Arena Level 14
-          </div>
-          <div class="status-box-tag">Active Player</div>
-        </div>
       </div>
-
-      <div class="dropdown-menu-list">
-        <button class="dropdown-menu-item" id="menu-my-games">
-          ${renderLucideIcon(Gamepad2, { width: 18, height: 18 })}
-          <span>My Games & Library</span>
-        </button>
-        <button class="dropdown-menu-item" id="menu-arena-launch">
-          ${renderLucideIcon(Play, { width: 18, height: 18 })}
-          <span>Launch Taraju Arena</span>
-        </button>
-        <button class="dropdown-menu-item" id="menu-settings">
-          ${renderLucideIcon(Settings, { width: 18, height: 18 })}
-          <span>Settings & Preferences</span>
-        </button>
-      </div>
-
-      <div class="dropdown-divider"></div>
 
       <button id="btn-signout" class="btn-dropdown-signout" title="Sign out of Alice">
         ${renderLucideIcon(LogOut, { width: 16, height: 16 })}
@@ -319,15 +286,39 @@ function attachProfileDropdownEvents() {
   });
 
   document.getElementById("btn-signout")?.addEventListener("click", () => {
-    if (activeRoom) {
-      try {
-        activeRoom.leave();
-      } catch (e) {}
-      activeRoom = null;
-    }
-    clearNavigationState();
-    clearStoredUser();
-    renderLoginView();
+    profileDropdown?.classList.remove("show");
+    profileBtn?.classList.remove("active");
+
+    Swal.fire({
+      title: "Sign Out?",
+      text: "Are you sure you want to sign out of Alice?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Sign Out",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#334155",
+      reverseButtons: true,
+      focusCancel: true,
+      customClass: {
+        popup: "alice-swal-popup",
+        title: "alice-swal-title",
+        confirmButton: "alice-swal-confirm",
+        cancelButton: "alice-swal-cancel",
+      },
+    }).then((result) => {
+      if (result.isConfirmed) {
+        if (activeRoom) {
+          try {
+            activeRoom.leave();
+          } catch (e) {}
+          activeRoom = null;
+        }
+        clearNavigationState();
+        clearStoredUser();
+        renderLoginView();
+      }
+    });
   });
 }
 
@@ -905,17 +896,11 @@ function renderRoomLobbyView(user: UserProfile) {
           </div>
 
           <nav class="playstore-nav-tabs">
-            <div class="playstore-tab active" id="tab-to-store-lobby" data-tab="games" style="cursor: pointer;">Games</div>
+            <div class="playstore-tab active" id="tab-to-store-lobby" data-tab="home" style="cursor: pointer;">Games</div>
           </nav>
         </div>
 
         <div class="header-right">
-          <button class="icon-btn-round" title="Search games">
-            ${renderLucideIcon(Search, { width: 19, height: 19 })}
-          </button>
-          <button class="icon-btn-round" title="Help & feedback">
-            ${renderLucideIcon(HelpCircle, { width: 19, height: 19 })}
-          </button>
           <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
             ${avatarMarkupSmall}
           </button>
@@ -1042,7 +1027,6 @@ function renderRoomLobbyView(user: UserProfile) {
   };
   document.getElementById("brand-to-store-lobby")?.addEventListener("click", returnToStore);
   document.getElementById("tab-to-store-lobby")?.addEventListener("click", returnToStore);
-  document.getElementById("menu-my-games")?.addEventListener("click", returnToStore);
 
   // Scroll chat to bottom
   const chatWrap = document.getElementById("chat-messages-wrap");
@@ -3028,18 +3012,11 @@ function renderPlayStoreView(user: UserProfile) {
           </div>
 
           <nav class="playstore-nav-tabs">
-            <div class="playstore-tab active" data-tab="games">Games</div>
+            <div class="playstore-tab active" data-tab="home">Home</div>
           </nav>
         </div>
 
         <div class="header-right">
-          <button class="icon-btn-round" title="Search games">
-            ${renderLucideIcon(Search, { width: 19, height: 19 })}
-          </button>
-          <button class="icon-btn-round" title="Help & feedback">
-            ${renderLucideIcon(HelpCircle, { width: 19, height: 19 })}
-          </button>
-
           <!-- Profile Avatar Button -->
           <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
             ${avatarMarkupSmall}
@@ -3062,7 +3039,6 @@ function renderPlayStoreView(user: UserProfile) {
                 <div class="app-card-title">Taraju</div>
                 <div class="app-card-category">Alice Arena • Strategy & Matchmaking</div>
                 <div class="app-card-rating">
-                  <span class="star-rating">★ 4.9</span>
                   <span>• Multiplayer</span>
                 </div>
               </div>
@@ -3090,7 +3066,6 @@ function renderPlayStoreView(user: UserProfile) {
     e.stopPropagation();
     navigateToArena();
   });
-  document.getElementById("menu-arena-launch")?.addEventListener("click", navigateToArena);
 
   // Logo refresh
   document.getElementById("logo-refresh")?.addEventListener("click", () => {
