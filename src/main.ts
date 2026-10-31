@@ -19,7 +19,6 @@ import {
   ChevronLeft,
   X,
   Play,
-  AlertTriangle,
   Plus,
   Users,
   Crown,
@@ -3143,16 +3142,18 @@ function renderPlayStoreView(user: UserProfile) {
       <div class="home-center-content">
         <div class="home-game-label">[Game]</div>
         <div id="home-split-flap" class="home-split-flap-wrapper"></div>
-        ${renderSpecularButtonHtml({
-          id: "btn-get-started",
-          text: "Get Started",
-          size: "lg",
-          radius: 18,
-          tint: "#18181b",
-          tintOpacity: 1,
-          textColor: "#fafafa",
-          className: "home-get-started-btn",
-        })}
+        <div class="get-started-btn-wrapper">
+          ${renderSpecularButtonHtml({
+            id: "btn-get-started",
+            text: "Get Started",
+            size: "lg",
+            radius: 18,
+            tint: "#18181b",
+            tintOpacity: 1,
+            textColor: "#fafafa",
+            className: "home-get-started-btn",
+          })}
+        </div>
         <div class="home-created-by">Created by <a href="https://www.instagram.com/seven.learn" target="_blank" rel="noopener noreferrer" class="home-author-link">Gaurav (seven)</a></div>
       </div>
     </div>
@@ -3224,52 +3225,141 @@ function renderPlayStoreView(user: UserProfile) {
 }
 
 // ==========================================
-// GOOGLE AUTH / LOGIN VIEW
+// GOOGLE AUTH / LOGIN VIEW (King of Hearts Landing)
 // ==========================================
 function renderLoginView() {
+  stopRoomsAutoPolling();
   const app = document.getElementById("app");
   if (!app) return;
 
   disposeCursorGrid();
 
   app.innerHTML = `
-    <div class="login-container" id="login-root">
+    <div class="home-landing-container" id="home-landing-root">
       <!-- WebGL cursor grid canvas (background) -->
-      <canvas id="login-cursor-canvas" class="cursor-grid-canvas" aria-hidden="true"></canvas>
+      <canvas id="home-cursor-canvas" class="cursor-grid-canvas" aria-hidden="true"></canvas>
 
-      <div class="login-center-panel">
-
-        <!-- Game label -->
-        <div class="login-game-label">[Game]</div>
-
-        <!-- King of Diamonds card -->
-        <img src="/king-of-diamonds.png" alt="King of Diamonds" class="login-card-image" />
-
-        <!-- Google Sign-In button -->
-        <div id="google-btn-container" class="google-button-wrapper">
-          <div style="color: #64748b; font-size: 13px;">Loading Google Sign-In...</div>
+      <!-- Centered content -->
+      <div class="home-center-content">
+        <div class="home-game-label">[Game]</div>
+        <div id="home-split-flap" class="home-split-flap-wrapper"></div>
+        
+        <div class="get-started-btn-wrapper">
+          ${renderSpecularButtonHtml({
+            id: "btn-get-started",
+            text: `<span style="display:inline-flex;align-items:center;gap:10px;"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg><span>Get Started with Google</span></span>`,
+            size: "lg",
+            radius: 18,
+            tint: "#18181b",
+            tintOpacity: 1,
+            textColor: "#fafafa",
+            className: "home-get-started-btn",
+          })}
+          <div id="google-btn-overlay" class="google-login-btn-overlay" title="Sign in with Google">
+            <div id="google-btn-container"></div>
+          </div>
         </div>
+
+        <div class="home-created-by">Created by <a href="https://www.instagram.com/seven.learn" target="_blank" rel="noopener noreferrer" class="home-author-link">Gaurav (seven)</a></div>
       </div>
     </div>
   `;
 
   // Mount cursor grid
-  mountCursorGrid("login-cursor-canvas", "login-root");
+  mountCursorGrid("home-cursor-canvas", "home-landing-root");
+
+  // Mount SplitFlapText for KING OF HEARTS
+  disposeSplitFlapText();
+  const splitFlapContainer = document.getElementById("home-split-flap");
+  if (splitFlapContainer) {
+    splitFlapCleanup = initSplitFlapText(splitFlapContainer, {
+      words: ["KING OF HEARTS"],
+      flipDuration: 0.12,
+      stagger: 0.06,
+      cycleDelay: 2400,
+      charset: "alphanumeric",
+      flipsPerChar: 8,
+      order: "left",
+      align: "center",
+      tileStyle: "board",
+      tileColor: "#111827",
+      textColor: "#f8fafc",
+      glare: 0,
+      depth: 0.5,
+      tileRadius: 8,
+      gap: 6,
+      fontSize: "clamp(24px, 4vw, 48px)",
+      loop: true,
+      padTo: 14,
+      intro: true,
+    });
+  }
+
+  // Mount Specular Button on Get Started
+  const btnGetStarted = document.getElementById("btn-get-started") as HTMLButtonElement | null;
+  if (btnGetStarted) {
+    specularButtonCleanup = initSpecularButton(btnGetStarted, {
+      size: "lg",
+      radius: 18,
+      tint: "#18181b",
+      tintOpacity: 1,
+      textColor: "#fafafa",
+      lineColor: "#ffffff",
+      baseColor: "#3f3f46",
+      intensity: 1,
+      idleIntensity: 0.35,
+      shineSize: 10,
+      shineFade: 34,
+      thickness: 1.2,
+      glow: 1,
+      speed: 0.35,
+      followMouse: true,
+      proximity: 250,
+      autoAnimate: false,
+    });
+  }
+
+  const overlay = document.getElementById("google-btn-overlay");
+  if (overlay && btnGetStarted) {
+    overlay.addEventListener("pointerdown", () => {
+      btnGetStarted.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    });
+  }
 
   initGoogleAuth();
 }
 
 function initGoogleAuth() {
   const container = document.getElementById("google-btn-container");
+  const btnGetStarted = document.getElementById("btn-get-started");
+
+  // Fallback direct click handler if Google overlay is not active or missing client ID
+  btnGetStarted?.addEventListener("click", () => {
+    if (!googleClientId) {
+      Swal.fire({
+        icon: "warning",
+        title: "Google Client ID Missing",
+        text: "Please add VITE_GOOGLE_CLIENT_ID to alice/.env to enable Google Sign-In.",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#0284c7",
+        customClass: {
+          popup: "alice-swal-popup",
+          title: "alice-swal-title",
+          confirmButton: "alice-swal-primary",
+        },
+      });
+      return;
+    }
+
+    if (window.google?.accounts?.id?.prompt) {
+      window.google.accounts.id.prompt();
+    }
+  });
+
   if (!container) return;
 
   if (!googleClientId) {
-    container.innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: #d97706; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 8px 12px; border-radius: 8px;">
-        ${renderLucideIcon(AlertTriangle, { width: 16, height: 16 })}
-        Add VITE_GOOGLE_CLIENT_ID to alice/.env
-      </div>
-    `;
+    console.warn("VITE_GOOGLE_CLIENT_ID not found in .env");
     return;
   }
 
@@ -3282,14 +3372,7 @@ function initGoogleAuth() {
 
   setTimeout(() => {
     clearInterval(checkGisInterval);
-    if (!window.google?.accounts?.id && container) {
-      container.innerHTML = `
-        <div style="font-size: 12px; color: #64748b;">
-          Unable to load Google Sign-In. Please check your network connection or disable adblockers.
-        </div>
-      `;
-    }
-  }, 5000);
+  }, 6000);
 }
 
 function setupGisButton(container: HTMLElement) {
@@ -3313,6 +3396,8 @@ function setupGisButton(container: HTMLElement) {
 
         setStoredUser(user);
         await syncUserWithBackend(serverUrl, credential);
+        disposeCursorGrid();
+        saveNavigationState("arena");
         initApp();
       },
     });
@@ -3323,7 +3408,7 @@ function setupGisButton(container: HTMLElement) {
       size: "large",
       text: "continue_with",
       shape: "pill",
-      width: 280,
+      width: 320,
     });
   } catch (err) {
     console.error("Error setting up Google button:", err);
