@@ -4,6 +4,7 @@ import "./style.css";
 import { initCursorGrid } from "./CursorGrid.ts";
 import { initSpecularButton, renderSpecularButtonHtml } from "./SpecularButton.ts";
 import { initSplitFlapText } from "./SplitFlapText.ts";
+import { initRadar } from "./Radar.ts";
 import {
   type UserProfile,
   getStoredUser,
@@ -15,13 +16,11 @@ import {
 import {
   renderLucideIcon,
   LogOut,
-  Gamepad2,
   ChevronLeft,
   X,
   Play,
   Plus,
   Users,
-  Crown,
   Copy,
   Check,
   RefreshCw,
@@ -80,10 +79,11 @@ let roomChatHistory: ChatMessage[] = [];
 let isLobbyChatOpen = false;
 let unreadChatCount = 0;
 
-// CursorGrid, SpecularButton & SplitFlapText cleanup — call before rendering any new view
+// CursorGrid, SpecularButton, SplitFlapText & Radar cleanup — call before rendering any new view
 let cursorGridCleanup: (() => void) | null = null;
 let specularButtonCleanup: (() => void) | null = null;
 let splitFlapCleanup: (() => void) | null = null;
+let radarCleanup: (() => void) | null = null;
 
 function disposeSpecularButton() {
   specularButtonCleanup?.();
@@ -95,11 +95,49 @@ function disposeSplitFlapText() {
   splitFlapCleanup = null;
 }
 
+function disposeRadar() {
+  radarCleanup?.();
+  radarCleanup = null;
+}
+
 function disposeCursorGrid() {
   cursorGridCleanup?.();
   cursorGridCleanup = null;
   disposeSpecularButton();
   disposeSplitFlapText();
+  disposeRadar();
+}
+
+function mountRadar(containerId: string) {
+  disposeRadar();
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  radarCleanup = initRadar(container, {
+    color: "#0a9f5f",
+    backgroundColor: "transparent",
+    mode: "sweep",
+    speed: 1,
+    trail: 0.35,
+    scale: 0.9,
+    ringCount: 6,
+    spokeCount: 12,
+    ticks: true,
+    targets: 6,
+    clutter: 0.35,
+    mouseInteraction: true,
+    glow: 1,
+    tilt: 0,
+    centerX: 0.5,
+    centerY: 0.5,
+    brightness: 1,
+    gridOpacity: 1,
+    lineWidth: 1,
+    grain: 0.03,
+    fade: 0,
+    opacity: 1,
+    intro: true,
+    lightMode: true
+  });
 }
 function mountCursorGrid(canvasId: string, containerId: string) {
   const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
@@ -774,49 +812,63 @@ function updateRoomsGridUi(user: UserProfile) {
 }
 
 // ------------------------------------------
-// 2. ROOM LOBBY VIEW (Among Us Style Waiting Room in Light Theme)
+// 2. ROOM LOBBY VIEW (White Theme with Radar UI & Center Host)
 // ------------------------------------------
+function buildHostCenterHtml(
+  _user: UserProfile,
+  host: JoinedPlayer | undefined,
+  _maxSlots?: number,
+  _roomName?: string
+): string {
+  const hostName = host?.name || "Room Host";
+  const avatarMarkup = host?.picture
+    ? `<img src="${host.picture}" alt="${escapeHtml(hostName)}" class="host-avatar-img" referrerpolicy="no-referrer" />`
+    : `<div class="host-avatar-initials">${escapeHtml(hostName.charAt(0).toUpperCase())}</div>`;
+
+  // Center host hub: only host profile picture (no name, no crown, no text)
+  return `
+    <div class="host-avatar-wrapper" title="${escapeHtml(hostName)} (Host)">
+      ${avatarMarkup}
+    </div>
+  `;
+}
+
 function buildPodiumsHtml(user: UserProfile, maxSlots: number): string {
-  let podiumsHtml = "";
-  for (let i = 0; i < maxSlots; i++) {
-    const player = roomPlayers[i];
-    if (player) {
-      const isSelf = player.sessionId === activeRoom?.sessionId || player.userId === user.id;
-      const avatarMarkup = player.picture
-        ? `<img src="${player.picture}" alt="${player.name}" class="podium-avatar-img" referrerpolicy="no-referrer" />`
-        : `<div class="podium-avatar-initials">${(player.name || "P").charAt(0).toUpperCase()}</div>`;
+  const currentHost = roomPlayers.find((p) => p.isHost) || roomPlayers[0];
+  const guestPlayers = roomPlayers.filter((p) => p !== currentHost);
+  const guestSlotsCount = Math.max(1, maxSlots - 1);
 
-      podiumsHtml += `
-        <div class="podium-card ${isSelf ? "is-current-user" : ""}">
-          <div class="podium-avatar-wrapper">
-            ${avatarMarkup}
-            ${
-              player.isHost
-                ? `<div class="podium-crown-badge" title="Room Host">
-                     ${renderLucideIcon(Crown, { width: 14, height: 14 })}
-                   </div>`
-                : ""
-            }
-          </div>
+  let seatsHtml = "";
+  for (let i = 0; i < guestPlayers.length; i++) {
+    const player = guestPlayers[i];
+    if (!player) continue;
 
-          <div class="podium-player-name">
-            <span>${player.name}</span>
-            ${isSelf ? `<span class="podium-you-tag">You</span>` : ""}
-          </div>
+    // Position joined side seats around the radar:
+    // If only 1 guest joined and maxSlots === 2: place on the right side (90deg)
+    // If 2 guest slots: place on left (270deg) and right (90deg)
+    // If multiple guest slots: distribute evenly around the circular orbit
+    const angleDeg =
+      guestSlotsCount === 1
+        ? 90
+        : guestSlotsCount === 2
+        ? (i === 0 ? 270 : 90)
+        : Math.round((i * 360) / guestSlotsCount);
+
+    const isSelf = player.sessionId === activeRoom?.sessionId || player.userId === user.id;
+    const avatarMarkup = player.picture
+      ? `<img src="${player.picture}" alt="${escapeHtml(player.name)}" class="radar-guest-avatar-img" referrerpolicy="no-referrer" />`
+      : `<div class="radar-guest-avatar-initials">${escapeHtml((player.name || "P").charAt(0).toUpperCase())}</div>`;
+
+    // Only show joined users' profile: just a picture, no text, nothing
+    seatsHtml += `
+      <div class="lobby-table-seat ${isSelf ? "is-self" : ""}" style="--seat-angle: ${angleDeg}deg;">
+        <div class="radar-avatar-bubble ${isSelf ? "is-current-user" : ""}" title="${escapeHtml(player.name)}${isSelf ? " (YOU)" : ""}">
+          ${avatarMarkup}
         </div>
-      `;
-    } else {
-      podiumsHtml += `
-        <div class="podium-card empty-slot">
-          <div class="empty-slot-icon">
-            ${renderLucideIcon(Users, { width: 32, height: 32 })}
-          </div>
-          <div class="empty-slot-text">Waiting for player...</div>
-        </div>
-      `;
-    }
+      </div>
+    `;
   }
-  return podiumsHtml;
+  return seatsHtml;
 }
 
 function updateOrRenderLobby(user: UserProfile) {
@@ -830,7 +882,7 @@ function updateOrRenderLobby(user: UserProfile) {
     return;
   }
 
-  const currentHost = roomPlayers.find((p) => p.isHost);
+  const currentHost = roomPlayers.find((p) => p.isHost) || roomPlayers[0];
   const isHost = Boolean(
     currentHost &&
       (currentHost.sessionId === activeRoom?.sessionId || currentHost.userId === user.id)
@@ -844,10 +896,16 @@ function updateOrRenderLobby(user: UserProfile) {
   const codeEl = document.getElementById("lobby-code-mono-display");
   if (codeEl) codeEl.textContent = `#${roomCode}`;
 
-  // 1. Update podium cards in real-time
+  // 1. Update center host card
+  const hostCenter = document.getElementById("lobby-host-center-container");
+  if (hostCenter) {
+    hostCenter.innerHTML = buildHostCenterHtml(user, currentHost, maxSlots, roomName);
+  }
+
+  // 2. Update podium cards in real-time (only joined users pictures on radar)
   podiumContainer.innerHTML = buildPodiumsHtml(user, maxSlots);
 
-  // 2. Update count pills
+  // 3. Update count pills
   const topCount = document.getElementById("lobby-players-top-count");
   if (topCount) {
     topCount.textContent = `${roomPlayers.length} / ${maxSlots} Players`;
@@ -857,28 +915,22 @@ function updateOrRenderLobby(user: UserProfile) {
     stageHeaderCount.textContent = `Lobby Crew (${roomPlayers.length} / ${maxSlots})`;
   }
 
-  // 3. Update bottom action status & buttons
-  const statusTextWrap = document.getElementById("lobby-action-status-text");
-  if (statusTextWrap) {
-    statusTextWrap.innerHTML = isHost
-      ? `<span>👑 <strong>You are the Room Host.</strong> Click Start Room when players have joined!</span>`
-      : `<span>⏳ Waiting for host <strong>(${currentHost?.name || "Host"})</strong> to start the match...</span>`;
-  }
-
-  const buttonsGroup = document.getElementById("lobby-action-buttons-group");
-  if (buttonsGroup) {
-    buttonsGroup.innerHTML = isHost
-      ? `
-        <button class="btn-start-room" id="btn-host-start-room">
-          ${renderLucideIcon(Play, { width: 18, height: 18 })}
-          <span>Start Room</span>
-        </button>
-      `
-      : "";
-
-    document.getElementById("btn-host-start-room")?.addEventListener("click", () => {
+  // 4. Update small floating host start button
+  const existingStartBtn = document.getElementById("btn-host-start-room");
+  const actionsContainer = document.getElementById("lobby-floating-actions");
+  if (isHost && !existingStartBtn && actionsContainer) {
+    const startBtn = document.createElement("button");
+    startBtn.id = "btn-host-start-room";
+    startBtn.className = "floating-start-btn";
+    startBtn.title = "Start Room";
+    startBtn.setAttribute("aria-label", "Start Room");
+    startBtn.innerHTML = renderLucideIcon(Play, { width: 22, height: 22, style: "fill: currentColor; margin-left: 2px;" });
+    startBtn.addEventListener("click", () => {
       startRoomMatch(user);
     });
+    actionsContainer.prepend(startBtn);
+  } else if (!isHost && existingStartBtn) {
+    existingStartBtn.remove();
   }
 }
 
@@ -890,6 +942,8 @@ function renderRoomLobbyView(user: UserProfile) {
 
   const app = document.getElementById("app");
   if (!app || !activeRoom) return;
+
+  disposeRadar();
 
   const currentHost = roomPlayers.find((p) => p.isHost);
   const isHost = Boolean(currentHost && (currentHost.sessionId === activeRoom.sessionId || currentHost.userId === user.id));
@@ -922,35 +976,9 @@ function renderRoomLobbyView(user: UserProfile) {
     .join("");
 
   app.innerHTML = `
-    <div class="arena-fullscreen-wrapper">
-      <!-- Alice Navigation Header -->
-      <header class="playstore-header">
-        <div class="header-left">
-          <div class="navbar-brand" id="brand-to-store-lobby" title="Back to Games" style="cursor: pointer;">
-            <div class="navbar-logo-icon">
-              ${renderLucideIcon(Gamepad2, { width: 20, height: 20 })}
-            </div>
-            <div>
-              <div class="navbar-title">Alice Multiplayer</div>
-              <div class="navbar-subtitle">Arena v0.1</div>
-            </div>
-          </div>
-
-          <nav class="playstore-nav-tabs">
-            <div class="playstore-tab active" id="tab-to-store-lobby" data-tab="home" style="cursor: pointer;">Games</div>
-          </nav>
-        </div>
-
-        <div class="header-right">
-          <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${user.name}">
-            ${avatarMarkupSmall}
-          </button>
-          ${renderProfileDropdownHtml(user, avatarMarkupLarge)}
-        </div>
-      </header>
-
+    <div class="arena-fullscreen-wrapper lobby-white-theme">
       <div class="room-lobby-fullscreen">
-        <!-- Room Lobby Top Sub-Header -->
+        <!-- Room Lobby Top Bar -->
         <header class="room-lobby-topbar">
           <div class="lobby-topbar-left">
             <button class="btn-leave-lobby" id="btn-leave-room" title="Leave room and return to lobby browser">
@@ -959,9 +987,9 @@ function renderRoomLobbyView(user: UserProfile) {
             </button>
 
             <div class="lobby-room-info-group">
-              <div class="lobby-room-name" id="lobby-room-name-display">${roomName}</div>
+              <div class="lobby-room-name" id="lobby-room-name-display">${escapeHtml(roomName)}</div>
               <div class="lobby-code-badge" id="btn-copy-code" title="Click to copy room code">
-                <span class="code-mono" id="lobby-code-mono-display">#${roomCode}</span>
+                <span class="code-mono" id="lobby-code-mono-display">#${escapeHtml(roomCode)}</span>
                 <span id="copy-icon-wrap">${renderLucideIcon(Copy, { width: 13, height: 13 })}</span>
               </div>
             </div>
@@ -972,36 +1000,66 @@ function renderRoomLobbyView(user: UserProfile) {
               ${renderLucideIcon(Users, { width: 15, height: 15 })}
               <span id="lobby-players-top-count">${roomPlayers.length} / ${maxSlots} Players</span>
             </div>
+
+            <div class="lobby-profile-wrap" style="position: relative;">
+              <button id="btn-profile-toggle" class="playstore-profile-btn" title="Account: ${escapeHtml(user.name)}">
+                ${avatarMarkupSmall}
+              </button>
+              ${renderProfileDropdownHtml(user, avatarMarkupLarge)}
+            </div>
           </div>
         </header>
 
-        <!-- Room Lobby Main Floor: Podiums & Sidebar -->
+        <!-- Room Lobby Main Floor: Circular Center Table & Orbiting Seats -->
         <main class="room-lobby-main">
-          <!-- Left: Player Character Podiums (Among Us layout) -->
-          <section class="lobby-stage-area">
-            <div class="stage-header-title" id="lobby-stage-crew-title">
-              Lobby Crew (${roomPlayers.length} / ${maxSlots})
-            </div>
-            <div class="podium-grid" id="podium-grid-container">
-              ${podiumsHtml}
-            </div>
-          </section>
+          <div class="stage-header-title" id="lobby-stage-crew-title" style="display: none;">
+            Lobby Crew (${roomPlayers.length} / ${maxSlots})
+          </div>
 
+          <div class="lobby-center-container">
+            <div class="lobby-table-wrapper" id="lobby-radar-wrapper">
+              <!-- Radar WebGL container -->
+              <div class="lobby-radar-canvas-container" id="lobby-radar-container"></div>
+
+              <!-- Center Host Profile Disc (in the center of the radar) -->
+              <div class="table-center-disc lobby-host-center-disc" id="lobby-host-center-container">
+                ${buildHostCenterHtml(user, currentHost, maxSlots, roomName)}
+              </div>
+
+              <!-- Seats orbiting around the radar on the sides (only joined users pictures) -->
+              <div class="lobby-seats-orbit podium-grid" id="podium-grid-container">
+                ${podiumsHtml}
+              </div>
+            </div>
+          </div>
         </main>
 
-        <!-- Floating Chat Icon (Bottom Right) -->
-        <button id="btn-floating-chat" class="floating-chat-btn ${isLobbyChatOpen ? 'is-hidden' : ''}" title="Open Lobby Chat" aria-label="Open Lobby Chat">
-          ${renderLucideIcon(MessageSquare, { width: 22, height: 22 })}
-          <span class="chat-unread-badge" id="chat-unread-badge" style="display: ${unreadChatCount > 0 && !isLobbyChatOpen ? 'flex' : 'none'};">
-            ${unreadChatCount > 9 ? '9+' : unreadChatCount}
-          </span>
-        </button>
+        <!-- Floating Actions Cluster: Comment Box directly above Start Button -->
+        <div class="lobby-floating-actions" id="lobby-floating-actions">
+          ${
+            isHost
+              ? `
+                <button id="btn-host-start-room" class="floating-start-btn" title="Start Room" aria-label="Start Room">
+                  ${renderLucideIcon(Play, { width: 22, height: 22, style: "fill: currentColor; margin-left: 2px;" })}
+                </button>
+              `
+              : ""
+          }
+
+          <!-- Comment Box Icon (Directly above Start Button) -->
+          <button id="btn-floating-chat" class="floating-chat-btn ${isLobbyChatOpen ? 'is-hidden' : ''}" title="Open Lobby Chat" aria-label="Open Lobby Chat">
+            ${renderLucideIcon(MessageSquare, { width: 22, height: 22 })}
+            <span class="chat-unread-badge" id="chat-unread-badge" style="display: ${unreadChatCount > 0 && !isLobbyChatOpen ? 'flex' : 'none'};">
+              ${unreadChatCount > 9 ? '9+' : unreadChatCount}
+            </span>
+          </button>
+        </div>
 
         <!-- Right Side Chat Drawer -->
         <aside class="lobby-chat-drawer ${isLobbyChatOpen ? 'is-open' : ''}" id="lobby-chat-drawer" aria-label="Lobby Chat">
           <div class="chat-header">
             <div class="chat-header-title-group">
-              ${renderLucideIcon(MessageSquare, { width: 16, height: 16, style: "color: #38bdf8;" })}
+              ${renderLucideIcon(MessageSquare, { width: 16, height: 16, style: "color: #0284c7;" })}
               <span>Lobby Chat</span>
               <span class="chat-live-badge">
                 <span class="chat-live-dot"></span>
@@ -1029,33 +1087,12 @@ function renderRoomLobbyView(user: UserProfile) {
             <button type="submit" class="btn-send-chat">Send</button>
           </form>
         </aside>
-
-        <!-- Sticky Bottom Control Bar (Light Mode) -->
-        <footer class="lobby-bottom-action-bar">
-          <div class="lobby-action-status-text" id="lobby-action-status-text">
-            ${
-              isHost
-                ? `<span>👑 <strong>You are the Room Host.</strong> Click Start Room when players have joined!</span>`
-                : `<span>⏳ Waiting for host <strong>(${currentHost?.name || "Host"})</strong> to start the match...</span>`
-            }
-          </div>
-
-          <div class="lobby-action-buttons-group" id="lobby-action-buttons-group">
-            ${
-              isHost
-                ? `
-                  <button class="btn-start-room" id="btn-host-start-room">
-                    ${renderLucideIcon(Play, { width: 18, height: 18 })}
-                    <span>Start Room</span>
-                  </button>
-                `
-                : ""
-            }
-          </div>
-        </footer>
       </div>
     </div>
   `;
+
+  // Mount Radar WebGL Animation
+  mountRadar("lobby-radar-container");
 
   // Attach profile dropdown
   attachProfileDropdownEvents();
@@ -2027,6 +2064,8 @@ function handleTarajuSyncAction(action: any, user: UserProfile) {
 function renderGameActiveView(user: UserProfile) {
   const app = document.getElementById("app");
   if (!app) return;
+
+  disposeRadar();
 
   const currentHost = tarajuGameState.players.find((p) => p.isHost) || tarajuGameState.players[0];
   const isHost =
@@ -3066,6 +3105,7 @@ function syncPlayersFromRoomState(room: any, _currentUser?: UserProfile) {
 }
 
 function leaveCurrentRoom(user: UserProfile) {
+  disposeRadar();
   stopTarajuGameTimers();
   removeCountdownOverlay();
   tarajuGameState = createInitialTarajuGameState();
